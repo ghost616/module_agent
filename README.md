@@ -4,13 +4,10 @@
 
 ## 安装
 
-在项目或全局 `opencode.json` 中添加：
+将插件文件放到以下插件目录，OpenCode 启动时自动加载：
 
-```json
-{
-  "plugin": ["open-code-plugin@latest"]
-}
-```
+- 项目级：`.opencode/plugins/`
+- 全局级：`~/.config/opencode/plugins/`
 
 ## 快速开始
 
@@ -148,20 +145,7 @@
 │       └── review_result.json     # 审查结果
 ```
 
-## 开发
-
-```bash
-# 安装依赖
-bun install
-
-# 本地开发（加载插件到 OpenCode）
-bun dev
-
-# 类型检查
-bun typecheck
-```
-
-### 项目结构
+## 项目结构
 
 ```
 src/
