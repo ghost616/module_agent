@@ -1,0 +1,187 @@
+import { tool } from '@opencode-ai/plugin'
+import type { ToolResult } from '@opencode-ai/plugin'
+import { planReadMetadataSchema, planReadPlanSchema, planCompleteSchema, planDeleteSchema } from '../lib/constants.ts'
+import { getAgentMode } from '../lib/session_state.ts'
+import {
+  readAllMetadata,
+  readPlan,
+  markPlanComplete,
+  getFirstPendingReview,
+  markReviewComplete,
+  deletePlan,
+  deleteCompletedPlans,
+} from '../lib/development_plan.ts'
+import { getPlanIdBySession, removeMappingByPlanId } from '../lib/session_plan_map.ts'
+import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
+import { limuPlanGuard } from '../lib/limu_plan_guard.ts'
+
+type AgentMode = ReturnType<typeof getAgentMode>
+
+function checkPermission(mode: AgentMode, action: string): ToolResult | null {
+  const allowed: Record<string, AgentMode[]> = {
+    read_metadata: ['fengzhou', 'gaotao'],
+    read_plan: ['fengzhou'],
+    plan_complete: ['limu'],
+    delete_plan: ['fengzhou'],
+    review_complete: ['gaotao'],
+    get_pending_review: ['gaotao'],
+    clean_completed: ['fengzhou'],
+  }
+
+  const modes = allowed[action]
+  if (!modes || !modes.includes(mode)) {
+    return {
+      title: '权限不足',
+      output: JSON.stringify({ status: 'error', error: `module_agent_plan (${action}) 仅供 ${modes?.join('/')} 调用。` }),
+    }
+  }
+  return null
+}
+
+export const moduleAgentPlan = tool({
+  description: '开发计划管理。读取计划元数据、读取计划详情、标记计划完成、获取待审查计划、标记审查完成、清理已完成计划、删除计划。',
+  args: {
+    action: tool.schema.enum(['read_metadata', 'read_plan', 'plan_complete', 'delete_plan', 'review_complete', 'get_pending_review', 'clean_completed']).describe('操作类型'),
+    plan_id: tool.schema.string().optional().describe('计划 ID（read_plan/delete_plan/review_complete 时必填）'),
+    files: tool.schema.array(tool.schema.string()).optional().describe('修改的文件路径列表（plan_complete 时必填）'),
+  },
+  async execute(args, context): Promise<ToolResult> {
+    const mode = getAgentMode(context.directory, context.sessionID)
+    const action = args.action as string
+
+    const permError = checkPermission(mode, action)
+    if (permError) return permError
+
+    if (mode === 'limu') {
+      const guard = await limuPlanGuard(context.directory, context.sessionID)
+      if (guard) return guard
+    }
+
+    const wsName = await resolveWorkspace(context.directory, context.sessionID)
+    if (!wsName) {
+      return {
+        title: '未绑定工作空间',
+        output: JSON.stringify({ status: 'error', error: '当前会话未关联工作空间' }),
+      }
+    }
+    const wsDir = getWorkspaceDir(context.directory, wsName)
+
+    if (action === 'read_metadata') {
+      const meta = await readAllMetadata(wsDir)
+      return {
+        title: `共 ${meta.length} 个计划`,
+        output: JSON.stringify({ plans: meta }),
+      }
+    }
+
+    const planId = args.plan_id as string | undefined
+    if (!planId) {
+      return { title: '参数错误', output: JSON.stringify({ status: 'error', error: 'plan_id 必填' }) }
+    }
+
+    if (action === 'read_plan') {
+      const plan = await readPlan(wsDir, planId)
+      if (!plan) {
+        return {
+          title: '计划不存在',
+          output: JSON.stringify({ status: 'error', error: `计划 ${planId} 不存在` }),
+        }
+      }
+      return {
+        title: `计划 ${planId}`,
+        output: JSON.stringify({
+          plan_id: plan.plan_id,
+          module_name: plan.module_name,
+          development_plan: plan.development_plan,
+          modified_files: plan.modified_files,
+          session_id: plan.session_id,
+        }),
+      }
+    }
+
+    if (action === 'plan_complete') {
+      const validate = planCompleteSchema.passthrough().safeParse(args)
+      if (!validate.success) {
+        return { title: '参数错误', output: JSON.stringify({ status: 'error', error: validate.error.message }) }
+      }
+      const planId = await getPlanIdBySession(wsDir, context.sessionID)
+      if (!planId) {
+        return {
+          title: '映射不存在',
+          output: JSON.stringify({ status: 'error', error: `当前会话未关联任何计划` }),
+        }
+      }
+      const files = args.files as string[]
+      const ok = await markPlanComplete(wsDir, planId, files)
+      if (!ok) {
+        return {
+          title: '计划不存在',
+          output: JSON.stringify({ status: 'error', error: `计划 ${planId} 不存在` }),
+        }
+      }
+      return {
+        title: `计划已标记完成`,
+        output: JSON.stringify({ status: 'ok', plan_id: planId, modified_files: files }),
+      }
+    }
+
+    if (action === 'delete_plan') {
+      const ok = await deletePlan(wsDir, planId)
+      if (!ok) {
+        return {
+          title: '计划不存在',
+          output: JSON.stringify({ status: 'error', error: `计划 ${planId} 不存在` }),
+        }
+      }
+      await removeMappingByPlanId(wsDir, planId)
+      return {
+        title: `计划已删除`,
+        output: JSON.stringify({ status: 'ok', plan_id: planId }),
+      }
+    }
+
+    if (action === 'review_complete') {
+      const ok = await markReviewComplete(wsDir, planId)
+      if (!ok) {
+        return {
+          title: '计划不存在',
+          output: JSON.stringify({ status: 'error', error: `计划 ${planId} 不存在` }),
+        }
+      }
+      return {
+        title: '审查已标记完成',
+        output: JSON.stringify({ status: 'ok', plan_id: planId }),
+      }
+    }
+
+    if (action === 'get_pending_review') {
+      const plan = await getFirstPendingReview(wsDir)
+      if (!plan) {
+        return {
+          title: '无待审查计划',
+          output: JSON.stringify({ status: 'ok', message: '当前没有已完成且未审查的计划' }),
+        }
+      }
+      return {
+        title: `待审查计划 ${plan.plan_id}`,
+        output: JSON.stringify({
+          plan_id: plan.plan_id,
+          module_name: plan.module_name,
+          development_plan: plan.development_plan,
+          modified_files: plan.modified_files,
+          session_id: plan.session_id,
+        }),
+      }
+    }
+
+    if (action === 'clean_completed') {
+      const count = await deleteCompletedPlans(wsDir)
+      return {
+        title: `已清理 ${count} 个计划`,
+        output: JSON.stringify({ status: 'ok', deleted: count }),
+      }
+    }
+
+    return { title: '未知操作', output: JSON.stringify({ status: 'error', error: `未知 action: ${action}` }) }
+  },
+})
