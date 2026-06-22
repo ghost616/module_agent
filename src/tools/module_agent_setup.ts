@@ -29,6 +29,12 @@ export function createModuleAgentSetup(client: OpencodeClient) {
           output: '皋陶已在此会话中激活，无法启动岐伯。请在新会话中操作。',
         }
       }
+      if (current === 'lishou') {
+        return {
+          title: '加载失败',
+          output: '隶首已在此会话中激活。岐伯与隶首互斥，无法同时加载。请在新会话中加载岐伯。',
+        }
+      }
 
       setAgentMode(context.directory, context.sessionID, 'qibo')
 

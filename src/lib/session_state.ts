@@ -3,7 +3,7 @@ import { join, dirname } from 'node:path'
 import { SESSION_MODES_FILE } from './constants.ts'
 import { exists, readJson, writeText } from './fs.ts'
 
-export type AgentMode = 'fengzhou' | 'qibo' | 'limu' | 'gaotao'
+export type AgentMode = 'fengzhou' | 'qibo' | 'limu' | 'gaotao' | 'lishou'
 
 type AgentModeMap = Map<string, AgentMode>
 const sessions = new Map<string, AgentModeMap>()

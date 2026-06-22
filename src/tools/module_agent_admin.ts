@@ -43,10 +43,11 @@ export const moduleAgentAdmin = tool({
     ignore: tool.schema.array(tool.schema.string()).optional().describe('list_dirs：忽略目录名列表'),
   },
   async execute(args, context): Promise<ToolResult> {
-    if (getAgentMode(context.directory, context.sessionID) !== 'fengzhou') {
+    const adminMode = getAgentMode(context.directory, context.sessionID)
+    if (adminMode !== 'fengzhou' && adminMode !== 'lishou') {
       return {
         title: '权限不足',
-        output: JSON.stringify({ status: 'error', error: 'module_agent_admin 仅供风后调用。' }),
+        output: JSON.stringify({ status: 'error', error: 'module_agent_admin 仅供风后或隶首调用。' }),
       }
     }
 

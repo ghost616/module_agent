@@ -20,10 +20,10 @@ export const moduleAgentReader = tool({
   },
   async execute(args, context): Promise<ToolResult> {
     const mode = getAgentMode(context.directory, context.sessionID)
-    if (mode !== 'fengzhou' && mode !== 'limu' && mode !== 'gaotao') {
+    if (mode !== 'fengzhou' && mode !== 'limu' && mode !== 'gaotao' && mode !== 'lishou') {
       return {
         title: '权限不足',
-        output: JSON.stringify({ status: 'error', error: 'module_agent_reader 仅供风后、力牧或皋陶调用。' }),
+        output: JSON.stringify({ status: 'error', error: 'module_agent_reader 仅供风后、力牧、皋陶或隶首调用。' }),
       }
     }
 

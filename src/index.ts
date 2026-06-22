@@ -12,6 +12,8 @@ import { verificationCode, generateIdTool } from './tools/verification_code.ts'
 import { moduleAgentBackup } from './tools/module_agent_backup.ts'
 import { moduleAgentPlan } from './tools/module_agent_plan.ts'
 import { workspaceTool } from './tools/workspace.ts'
+import { moduleAgentExplorer } from './tools/module_agent_explorer.ts'
+import { createModuleAgentClassifier } from './tools/module_agent_classifier.ts'
 import { initSessionState, getAgentMode } from './lib/session_state.ts'
 import { clearActivity, recordActivity } from './lib/limu_monitor.ts'
 import { checkLimuPlanActive } from './lib/limu_plan_guard.ts'
@@ -31,6 +33,7 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
   const moduleAgentStart = createModuleAgentStart(ctx.client)
   const moduleAgentDone = createModuleAgentDone(ctx.client)
   const moduleAgentSetup = createModuleAgentSetup(ctx.client)
+  const moduleAgentClassifier = createModuleAgentClassifier(ctx.client)
 
   return {
     tool: {
@@ -47,6 +50,8 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
       module_agent_backup: moduleAgentBackup,
       module_agent_plan: moduleAgentPlan,
       workspace: workspaceTool,
+      module_agent_explorer: moduleAgentExplorer,
+      module_agent_classifier: moduleAgentClassifier,
     },
 
     // ============================================================
@@ -59,6 +64,7 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
         'module_agent_reader', 'module_agent_start', 'module_agent_setup',
         'module_agent_done', 'module_design_admin', 'verification_code', 'generate_id',
         'module_agent_backup', 'module_agent_plan', 'workspace',
+        'module_agent_explorer', 'module_agent_classifier',
       ]
       if (customTools.includes(input.type)) {
         output.status = 'allow'
@@ -95,7 +101,7 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
       const mode = getAgentMode(ctx.directory, input.sessionID)
       const blockedTools = ['write', 'edit']
 
-      if ((mode === 'fengzhou' || mode === 'gaotao') && blockedTools.includes(input.tool)) {
+      if ((mode === 'fengzhou' || mode === 'gaotao' || mode === 'lishou') && blockedTools.includes(input.tool)) {
         await ctx.client.app.log({
           body: {
             service: 'module-agent-plugin',
@@ -104,7 +110,8 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
             extra: { sessionID: input.sessionID, tool: input.tool, mode },
           },
         })
-        throw new Error(`${mode === 'fengzhou' ? '风后' : '皋陶'}不直接修改代码文件，请通过力牧执行。`)
+        const agentName = { fengzhou: '风后', gaotao: '皋陶', lishou: '隶首' }[mode] ?? mode
+        throw new Error(`${agentName}不直接修改代码文件。`)
       }
 
       if (mode === 'limu' && !input.tool.startsWith('module_agent_')) {

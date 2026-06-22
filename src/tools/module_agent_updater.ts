@@ -74,6 +74,7 @@ export const moduleAgentUpdater = tool({
     const mode = getAgentMode(directory, context.sessionID)
 
     const fengzhouAllowed = ['update_definition', 'move_definition']
+    const lishouAllowed = ['update_definition', 'update_spec']
     const gaotaoAllowed = ['write_review']
     const limuExcluded = ['write_review']
 
@@ -83,7 +84,7 @@ export const moduleAgentUpdater = tool({
         output: JSON.stringify({ status: 'error', error: `module_agent_updater action="${action}" 仅供皋陶调用。` }),
       }
     }
-    if (mode !== 'limu' && !(mode === 'fengzhou' && fengzhouAllowed.includes(action)) && !(mode === 'gaotao' && gaotaoAllowed.includes(action))) {
+    if (mode !== 'limu' && !(mode === 'fengzhou' && fengzhouAllowed.includes(action)) && !(mode === 'lishou' && lishouAllowed.includes(action)) && !(mode === 'gaotao' && gaotaoAllowed.includes(action))) {
       return {
         title: '权限不足',
         output: JSON.stringify({ status: 'error', error: `module_agent_updater action="${action}" 权限不足。` }),

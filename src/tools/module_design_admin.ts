@@ -45,10 +45,10 @@ export const moduleDesignAdmin = tool({
   },
   async execute(args, context): Promise<ToolResult> {
     const mode = getAgentMode(context.directory, context.sessionID)
-    if (mode !== 'fengzhou' && mode !== 'qibo') {
+    if (mode !== 'fengzhou' && mode !== 'qibo' && mode !== 'lishou') {
       return {
         title: '权限不足',
-        output: JSON.stringify({ status: 'error', error: 'module_design_admin 仅供风后或岐伯调用。请先使用 module_agent_start 或 module_agent_setup 激活对应模式。' }),
+        output: JSON.stringify({ status: 'error', error: 'module_design_admin 仅供风后、岐伯或隶首调用。请先使用 module_agent_start、module_agent_setup 或 module_agent_classifier 激活对应模式。' }),
       }
     }
 
