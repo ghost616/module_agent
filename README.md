@@ -126,7 +126,7 @@
 ### 代码归类（隶首）
 
 1. 调用 `module_agent_classifier` 启动隶首
-2. 隶首递归扫描项目目录，使用 `module_agent_explorer` 浏览文件
+2. 隶首递归扫描项目目录，使用 `module_agent_explorer` 浏览文件，找到未归入模块的文件
 3. 使用 `module_agent_analyzer` 提取导出符号、依赖关系等代码元数据
 4. 通过物理边界、依赖关系、功能语义三维度归类文件
 5. 使用 `module_classification` 绑定模块、Apply 写入 `module_definition.json`
