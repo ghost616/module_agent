@@ -1,6 +1,6 @@
 # OpenCode Module Agent Plugin
 
-使用 OpenCode + DeepSeek 开发的多模块协同开发插件，提供岐伯（项目设置向导）、风后（计划编排）、力牧（计划执行）、皋陶（代码审查）四级 Agent 协作框架。
+使用 OpenCode + DeepSeek 开发的多模块协同开发插件，提供岐伯（项目设置）、隶首（代码自归类与模块补全）、风后（计划编排）、力牧（计划执行）、皋陶（代码审查）五级 Agent 协作框架。
 
 ## 安装
 
@@ -14,10 +14,12 @@
 在 OpenCode 会话中输入以下指令启动对应智能体：
 
 ```
-> /module_agent_setup      或直接输入：启动岐伯
-> /module_agent_start      或直接输入：启动风后力牧
+> /module_agent_classifier  或直接输入：启动隶首
+> /module_agent_setup       或直接输入：启动岐伯
+> /module_agent_start       或直接输入：启动风后力牧
 ```
 
+0. 代码归类：调用 `module_agent_classifier`（或输入"启动隶首"），分析已有代码自动归类文件、绑定模块、更新模块设计、提取代码规范
 1. 初始化项目：调用 `module_agent_setup`（或输入"启动岐伯"），引导生成需求设计、代码规范、模块设计
 2. 进入编排模式：调用 `module_agent_start`（或输入"启动风后力牧"），启动编排模式
 3. 风后自动完成：创建工作空间 → 创建模块 → 评估变更 → 生成开发计划
@@ -35,6 +37,15 @@
 │  Phase 2: 代码规范 → code_conventions.txt       │
 │  Phase 3: 模块设计 → module_design.json         │
 └──────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────┐
+│              隶首 (lishou)                         │
+│          代码自归类与模块补全智能体                    │
+│  扫描项目 → 文件分类 → 绑定模块 → Apply              │
+│  → 更新 module_design.json → 提取代码规范            │
+│                                                   │
+│  适用场景：已有代码建立模块体系 / 文件归入模块            │
+└──────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────┐
 │              风后 (fengzhou)                    │
@@ -65,11 +76,12 @@
 | 角色 | `write` / `edit` | `bash` | `read` / `grep` / `glob` | `module_agent_*` |
 |---|---|---|---|---|
 | 岐伯 | 允许（设置阶段可修改项目文件） | 允许 | 允许 | 仅限 `module_design_admin` |
+| 隶首 | **throw 阻断** | 允许 | 允许 | 允许（归类专用工具） |
 | 风后 | **throw 阻断** | 允许 | 允许 | 允许（编排调度用） |
 | 力牧 | 需 `checkLimuPlanActive` 通过 | 需计划检测通过 | 需计划检测通过 | 需 `limuPlanGuard` 通过 |
 | 皋陶 | **throw 阻断** | 允许 | 允许 | 仅限 `module_agent_plan` + `module_agent_updater` |
 
-## 工具清单（13 个自定义工具）
+## 工具清单（18 个自定义工具）
 
 ### 编排调度
 
@@ -77,6 +89,7 @@
 |---|---|
 | `module_agent_start` | 启动力牧编排模式，注入风后力牧规则 |
 | `module_agent_setup` | 启动岐伯项目设置向导 |
+| `module_agent_classifier` | 启动隶首代码归类模式 |
 | `module_agent_executor` | 启动力牧/皋陶会话，查询执行/审查状态 |
 | `module_agent_done` | 关闭力牧或皋陶会话 |
 
@@ -87,6 +100,10 @@
 | `module_agent_admin` | 创建/修改模块，列出候选目录，读取模块树 |
 | `module_agent_reader` | 读取模块元数据（spec/definition/history/dirs/plan_files） |
 | `module_design_admin` | 管理 `module_design.json` 模块设计条目 |
+| `module_classification` | 文件分类管理（隶首专用） |
+| `module_agent_explorer` | 目录浏览与递归扫描（隶首、风后） |
+| `module_agent_analyzer` | 关键字匹配与代码元数据提取（隶首、风后） |
+| `module_agent_line_reader` | 按行号读取文件（隶首、风后） |
 | `workspace` | 工作空间管理（创建/绑定/列表/状态） |
 
 ### 执行追踪
@@ -105,6 +122,15 @@
 | `generate_id` | 生成带类型前缀的 UUID（如 `plan_{uuid}`） |
 
 ## 工作流程
+
+### 代码归类（隶首）
+
+1. 调用 `module_agent_classifier` 启动隶首
+2. 隶首递归扫描项目目录，使用 `module_agent_explorer` 浏览文件
+3. 使用 `module_agent_analyzer` 提取导出符号、依赖关系等代码元数据
+4. 通过物理边界、依赖关系、功能语义三维度归类文件
+5. 使用 `module_classification` 绑定模块、Apply 写入 `module_definition.json`
+6. 更新 `module_design.json` 模块设计，提取代码规范
 
 ### 初始化（岐伯）
 
@@ -158,6 +184,7 @@ src/
 ├── lib/                  # 核心逻辑库
 │   ├── session_state.ts  # 会话模式状态管理
 │   ├── limu_plan_guard.ts # 力牧计划检测守卫
+│   ├── classifier_rules.ts # 隶首归类规则
 │   ├── orchestrator_rules.ts # 风后编排规则
 │   ├── reviewer_rules.ts # 皋陶审查规则
 │   ├── setup_guide.ts    # 岐伯设置向导规则
@@ -174,16 +201,21 @@ src/
 │   ├── workspace.ts      # 工作空间管理
 │   ├── session_workspace.ts # 会话 → 工作空间
 │   └── ...
-└── tools/                # 13 个自定义工具实现
+└── tools/                # 18 个自定义工具实现
     ├── module_agent_admin.ts
     ├── module_agent_executor.ts
     ├── module_agent_updater.ts
     ├── module_agent_reader.ts
     ├── module_agent_start.ts
     ├── module_agent_setup.ts
+    ├── module_agent_classifier.ts
     ├── module_agent_done.ts
     ├── module_agent_backup.ts
     ├── module_agent_plan.ts
+    ├── module_classification.ts
+    ├── module_agent_explorer.ts
+    ├── module_agent_analyzer.ts
+    ├── module_agent_line_reader.ts
     ├── module_design_admin.ts
     ├── verification_code.ts
     ├── workspace.ts
