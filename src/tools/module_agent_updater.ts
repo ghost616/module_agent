@@ -74,7 +74,7 @@ export const moduleAgentUpdater = tool({
     const mode = getAgentMode(directory, context.sessionID)
 
     const fengzhouAllowed = ['update_definition', 'move_definition']
-    const lishouAllowed = ['update_definition', 'update_spec']
+    const lishouAllowed = ['update_spec']
     const gaotaoAllowed = ['write_review']
     const limuExcluded = ['write_review']
 

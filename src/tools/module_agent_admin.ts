@@ -44,10 +44,10 @@ export const moduleAgentAdmin = tool({
   },
   async execute(args, context): Promise<ToolResult> {
     const adminMode = getAgentMode(context.directory, context.sessionID)
-    if (adminMode !== 'fengzhou' && adminMode !== 'lishou') {
+    if (adminMode !== 'fengzhou') {
       return {
         title: '权限不足',
-        output: JSON.stringify({ status: 'error', error: 'module_agent_admin 仅供风后或隶首调用。' }),
+        output: JSON.stringify({ status: 'error', error: 'module_agent_admin 仅供风后调用。' }),
       }
     }
 

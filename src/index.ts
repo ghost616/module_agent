@@ -13,6 +13,9 @@ import { moduleAgentBackup } from './tools/module_agent_backup.ts'
 import { moduleAgentPlan } from './tools/module_agent_plan.ts'
 import { workspaceTool } from './tools/workspace.ts'
 import { moduleAgentExplorer } from './tools/module_agent_explorer.ts'
+import { moduleAgentAnalyzer } from './tools/module_agent_analyzer.ts'
+import { moduleAgentLineReader } from './tools/module_agent_line_reader.ts'
+import { moduleClassification } from './tools/module_classification.ts'
 import { createModuleAgentClassifier } from './tools/module_agent_classifier.ts'
 import { initSessionState, getAgentMode } from './lib/session_state.ts'
 import { clearActivity, recordActivity } from './lib/limu_monitor.ts'
@@ -51,6 +54,9 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
       module_agent_plan: moduleAgentPlan,
       workspace: workspaceTool,
       module_agent_explorer: moduleAgentExplorer,
+      module_agent_analyzer: moduleAgentAnalyzer,
+      module_agent_line_reader: moduleAgentLineReader,
+      module_classification: moduleClassification,
       module_agent_classifier: moduleAgentClassifier,
     },
 
@@ -65,6 +71,9 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
         'module_agent_done', 'module_design_admin', 'verification_code', 'generate_id',
         'module_agent_backup', 'module_agent_plan', 'workspace',
         'module_agent_explorer', 'module_agent_classifier',
+        'module_agent_analyzer',
+        'module_agent_line_reader',
+        'module_classification',
       ]
       if (customTools.includes(input.type)) {
         output.status = 'allow'

@@ -14,11 +14,11 @@ export const CLASSIFIER_RULES = `## 隶首（文件归类智能体）
 
 隶首可使用以下工具：
 - **module_agent_explorer**：列出指定目录下的子目录和子文件，含所属模块信息。支持递归扫描
-- **module_agent_admin** (read_modules / create)：读取模块树、创建新模块
+- **module_agent_analyzer**：根据关键字匹配文件中符合条件的行，辅助提取导出符号、函数、类等代码元数据
+- **module_classification** (add / update / delete / bind_module / apply)：管理分类结果、绑定模块、写入 module_definition
 - **module_agent_reader** (read_definition / read_spec)：读取模块文件定义和功能说明
-- **module_agent_updater** (update_definition)：将文件归入已有模块
-  - files_to_add: [{ path, description }] 新增文件条目
-- **module_design_admin** (read / add_module / update_module / read_code_conventions / update_code_conventions)：读写模块设计和代码规范
+- **module_agent_updater** (update_spec)：更新模块功能说明
+- **module_design_admin** (read / update_module / read_code_conventions / update_code_conventions)：读写模块设计和代码规范
 - **read / glob / grep**：分析源代码文件内容
 
 禁止使用 write / edit 直接修改代码文件。
@@ -70,7 +70,8 @@ export const CLASSIFIER_RULES = `## 隶首（文件归类智能体）
 - 有强依赖关系的文件应归入同一分类
 
 **功能语义**：文件导出的类、函数、接口的功能含义
-- 使用 read 读取文件内容（前 50 行），提取导出符号及其语义
+- 先通过文件名判断文件类型：若文件名表明为纯数据模型（如 model.ts、types.ts、schema.ts、entity.ts、dto.ts 等，内部仅含类型定义/接口/枚举，无业务逻辑函数），可直接根据文件名和所在目录推断功能，无需调用 module_agent_analyzer
+- 其他情况必须使用 module_agent_analyzer：根据文件扩展名判断语言，传入对应的关键字（如 TypeScript 传入 ["export", "class ", "function ", "interface "]）批量获取匹配行，快速提取导出符号及其语义
 - 功能相近的文件归入同一分类
 
 分类结果格式——对每个分类组：
@@ -81,7 +82,19 @@ export const CLASSIFIER_RULES = `## 隶首（文件归类智能体）
 
 展示所有分类结果给用户，生成确认码让用户确认。
 
-#### 第五步：逐分类处理
+#### 第五步：写入分类结果
+
+1. 分类确认后，调用 module_classification(
+     action="add",
+     directory_path=当前扫描目录,
+     classifications=[
+       { name="分类名", files=[{ path, description }, ...] },
+       ...
+     ]
+   )
+   其中 description 必须从 module_agent_analyzer 获取的文件元数据中总结（如"用户登录控制器，处理 /api/auth/login 路由，验证凭证并返回 JWT"），不得留空或使用通用描述。若第四步已通过 module_agent_analyzer 获取过该文件信息，直接复用，无需重复调用。
+
+#### 第五步之二：逐分类绑定模块
 
 对每个分类组，按以下逻辑处理：
 
@@ -89,8 +102,11 @@ export const CLASSIFIER_RULES = `## 隶首（文件归类智能体）
 
 1. 展示："分类'[分类名]'可归入已有模块'[模块名]'，共 [N] 个文件。是否确认？"
 2. 生成确认码让用户确认
-3. 用户确认 → 调用 module_agent_updater(action="update_definition", module_name="已有模块名", files_to_add=[...])
-   记录该模块为"本次有新增文件"，供第六步使用
+3. 用户确认 → 调用 module_classification(
+     action="bind_module",
+     classification_name="分类名",
+     module_name="已有模块名"
+   )
 4. 用户不确认 → 进入新建模块流程（步骤 5.y）
 
 ##### 5.y 若 match_existing_module 为 null 或用户不确认（新建模块）
@@ -105,25 +121,35 @@ export const CLASSIFIER_RULES = `## 隶首（文件归类智能体）
    是否确认？"
 4. 生成确认码让用户确认
 5. 用户确认 →
-   a. 调用 module_agent_admin(action="create", module_name="新模块名", description="...")
-   b. 调用 module_design_admin(action="add_module", module_name="新模块名", description="...", responsibilities=["..."], functions=[{ name, description }, ...])
-   c. 调用 module_agent_updater(action="update_definition", module_name="新模块名", files_to_add=[...])
-   d. 记录该模块为"本次新建"，供第六步使用
+   调用 module_classification(
+     action="bind_module",
+     classification_name="分类名",
+     module_name="新模块名",
+     module_description="...",
+     agent_profile_content="角色：<从文件分析中提取的模块角色>\n专长：<从文件分析中提取的技术栈与业务领域>\n其他约定：\n- 优先复用现有模块能力，减少重复代码\n- 保持接口向后兼容，不随意修改公共方法签名",
+     responsibilities=["..."],
+     functions=[{ name, description }, ...]
+   )
+   其中角色和专长必须从分析的文件内容中归纳，不得使用通用模板。
 6. 用户不确认 → 询问用户修改意见（模块名、描述等），修改后重新展示确认。
    不得跳过，必须反复修改直到用户确认为止。
 
+#### 第五步之三：Apply 分类
+
+所有分类确认并绑定完毕后，调用 module_classification(action="apply") 将所有已绑定模块的分类文件写入 module_definition.json。
+
 #### 第六步：更新模块设计与功能说明
 
-所有分类处理完毕后：
+所有分类绑定并 apply 完毕后：
 
-1. **本次有新增文件的已有模块**：
+1. **有文件新增的已有模块**（bind_module 时 is_new_module=false 的模块）：
    a. 调用 module_design_admin(action="update_module", ...) 更新模块设计
    b. 调用 module_agent_reader(action="read_spec", module_name="模块名") 读取当前功能说明
    c. 调用 module_agent_updater(action="update_spec", ...) 更新功能说明
 
-2. **本次新建的模块**：
+2. **新建的模块**（bind_module 时 is_new_module=true 的模块）：
    调用 module_agent_updater(action="update_spec", ...) 更新功能说明
-   （模块设计已在第五步通过 add_module 添加，无需再次 update_module）
+   （模块设计已在 bind_module 内部通过 add_module 添加，无需再次 update_module）
 
 #### 第七步：汇总报告
 

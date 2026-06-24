@@ -6,7 +6,8 @@ import { readModuleDesign, addOrUpdateModule } from '../lib/module_design.ts'
 import { MODULE_AGENT_DIR, REQUIREMENTS_DESIGN_FILE, CODE_CONVENTIONS_FILE } from '../lib/constants.ts'
 import { exists, readText, writeText } from '../lib/fs.ts'
 
-async function checkPrerequisites(directory: string): Promise<ToolResult | null> {
+async function checkPrerequisites(directory: string, mode: string): Promise<ToolResult | null> {
+  if (mode === 'lishou') return null
   const requirementsPath = join(directory, MODULE_AGENT_DIR, REQUIREMENTS_DESIGN_FILE)
   if (!(await exists(requirementsPath))) {
     return {
@@ -104,7 +105,7 @@ export const moduleDesignAdmin = tool({
       }
 
       if (action === 'add_module') {
-        const result = await checkPrerequisites(directory)
+        const result = await checkPrerequisites(directory, mode)
         if (result) return result
         await addOrUpdateModule(directory, {
           name: moduleName,
@@ -117,7 +118,7 @@ export const moduleDesignAdmin = tool({
       }
 
       if (action === 'update_module') {
-        const result = await checkPrerequisites(directory)
+        const result = await checkPrerequisites(directory, mode)
         if (result) return result
         await addOrUpdateModule(directory, {
           name: moduleName,
