@@ -126,7 +126,7 @@ async function buildTree(
 export const moduleAgentExplorer = tool({
   description: '获取指定目录下的子目录和子文件列表，包含文件类型、所属模块、子文件数量信息。支持递归扫描。',
   args: {
-    action: tool.schema.enum(['explore_dir', 'list_files']).describe('操作类型：explore_dir 获取子目录列表及统计信息，list_files 获取目录下所有文件'),
+    action: tool.schema.enum(['explore_dir', 'list_files']).describe('操作类型：explore_dir 获取子目录列表及统计信息，list_files 获取目录下的直接子文件（不含子目录）'),
     directory_path: tool.schema.string().optional().describe('explore_dir：要探索的目录路径（相对或绝对路径）'),
     directory_paths: tool.schema.array(tool.schema.string()).optional().describe('list_files：子目录路径列表'),
     recursive: tool.schema.boolean().optional().describe('explore_dir：是否递归列出目录树（默认 false），统计信息仍只含直接子目录'),
@@ -173,17 +173,13 @@ export const moduleAgentExplorer = tool({
         async function collectFiles(absDir: string) {
           const entries = await readdir(absDir, { withFileTypes: true })
           for (const entry of entries) {
-            if (entry.isDirectory()) {
-              if (ignoreSet.has(entry.name)) continue
-              await collectFiles(join(absDir, entry.name))
-            } else {
-              const relPath = relative(directory, join(absDir, entry.name)).replace(/\\/g, '/')
-              const modules = await findModulesByFilePath(directory, relPath)
-              dirFiles.push({
-                name: entry.name,
-                module: modules.length > 0 ? modules[0] : null,
-              })
-            }
+            if (entry.isDirectory()) continue
+            const relPath = relative(directory, join(absDir, entry.name)).replace(/\\/g, '/')
+            const modules = await findModulesByFilePath(directory, relPath)
+            dirFiles.push({
+              name: entry.name,
+              module: modules.length > 0 ? modules[0] : null,
+            })
           }
         }
 

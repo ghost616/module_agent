@@ -76,7 +76,7 @@
 | 角色 | `write` / `edit` | `bash` | `read` / `grep` / `glob` | `module_agent_*` |
 |---|---|---|---|---|
 | 岐伯 | 允许（设置阶段可修改项目文件） | 允许 | 允许 | 仅限 `module_design_admin` |
-| 隶首 | **throw 阻断** | 允许 | 允许 | 允许（归类专用工具） |
+| 隶首 | **throw 阻断** | 允许 | 允许 | 允许（归类专用工具 + `module_agent_admin(read_modules)`） |
 | 风后 | **throw 阻断** | 允许 | 允许 | 允许（编排调度用） |
 | 力牧 | 需 `checkLimuPlanActive` 通过 | 需计划检测通过 | 需计划检测通过 | 需 `limuPlanGuard` 通过 |
 | 皋陶 | **throw 阻断** | 允许 | 允许 | 仅限 `module_agent_plan` + `module_agent_updater` |

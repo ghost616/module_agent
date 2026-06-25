@@ -44,15 +44,24 @@ export const moduleAgentAdmin = tool({
   },
   async execute(args, context): Promise<ToolResult> {
     const adminMode = getAgentMode(context.directory, context.sessionID)
-    if (adminMode !== 'fengzhou') {
+    const action = args.action as string
+
+    const allowed = action === 'read_modules'
+      ? adminMode === 'fengzhou' || adminMode === 'lishou'
+      : adminMode === 'fengzhou'
+    if (!allowed) {
       return {
         title: '权限不足',
-        output: JSON.stringify({ status: 'error', error: 'module_agent_admin 仅供风后调用。' }),
+        output: JSON.stringify({
+          status: 'error',
+          error: action === 'read_modules'
+            ? 'module_agent_admin 的 read_modules 仅供风后或隶首调用。'
+            : 'module_agent_admin 仅供风后调用。',
+        }),
       }
     }
 
     const directory = context.directory
-    const action = args.action as string
 
     if (action === 'read_modules') {
       const tree = await readModuleTree(directory)

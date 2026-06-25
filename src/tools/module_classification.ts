@@ -36,7 +36,7 @@ interface ClassificationData {
 }
 
 function getFilePath(directory: string, sessionId: string): string {
-  return join(directory, '.module_agent', 'classifications', `${sessionId}.json`)
+  return join(directory, '.module_agent', '.classifications', `${sessionId}.json`)
 }
 
 async function readData(directory: string, sessionId: string): Promise<ClassificationData> {
