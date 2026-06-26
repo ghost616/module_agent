@@ -21,20 +21,6 @@ export interface ReviewResult {
   planReviews: PlanReview[]
 }
 
-const reviewerSessions = new Set<string>()
-
-export function registerReviewer(reviewerSessionId: string): void {
-  reviewerSessions.add(reviewerSessionId)
-}
-
-export function isReviewer(reviewerSessionId: string): boolean {
-  return reviewerSessions.has(reviewerSessionId)
-}
-
-export function clearReviewerMapping(reviewerSessionId: string): void {
-  reviewerSessions.delete(reviewerSessionId)
-}
-
 function reviewDir(workspaceDir: string): string {
   return join(workspaceDir, 'review_results')
 }

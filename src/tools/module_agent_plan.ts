@@ -14,6 +14,7 @@ import {
 import { getPlanIdBySession, removeMappingByPlanId } from '../lib/session_plan_map.ts'
 import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
 import { limuPlanGuard } from '../lib/limu_plan_guard.ts'
+import { releasePlanFilesSession } from '../lib/plan_files.ts'
 
 type AgentMode = ReturnType<typeof getAgentMode>
 
@@ -112,12 +113,16 @@ export const moduleAgentPlan = tool({
         }
       }
       const files = args.files as string[]
+      const plan = await readPlan(wsDir, planId)
       const ok = await markPlanComplete(wsDir, planId, files)
       if (!ok) {
         return {
           title: '计划不存在',
           output: JSON.stringify({ status: 'error', error: `计划 ${planId} 不存在` }),
         }
+      }
+      if (plan) {
+        await releasePlanFilesSession(context.directory, plan.module_name, context.sessionID)
       }
       return {
         title: `计划已标记完成`,

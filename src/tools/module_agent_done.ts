@@ -6,11 +6,11 @@ import { validateConfirmationCode } from './verification_code.ts'
 import { removeModuleSession, isSessionChecked, clearSessionChecked, unbindGaotao, isGaotaoBoundToFengzhou } from '../lib/module_session_tracker.ts'
 import { deleteExecutionRecords, readAndCleanExecutionRecords } from '../lib/execution_result.ts'
 import { clearActivity } from '../lib/limu_monitor.ts'
-import { clearReviewerMapping } from '../lib/review_result.ts'
 import { deleteReviewResult, readReviewResult } from '../lib/review_result.ts'
 import { getPlanIdBySession, removeMapping } from '../lib/session_plan_map.ts'
 import { getBoundWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
 import { deletePlan } from '../lib/development_plan.ts'
+import { releasePlanFilesSession } from '../lib/plan_files.ts'
 import { getSessionWorkspace, removeSessionWorkspace } from '../lib/session_workspace.ts'
 
 export function createModuleAgentDone(client: OpencodeClient) {
@@ -80,7 +80,6 @@ export function createModuleAgentDone(client: OpencodeClient) {
           }
           clearAgentMode(directory, sessionId)
           clearActivity(sessionId)
-          clearReviewerMapping(sessionId)
           await deleteReviewResult(wsDir, sessionId)
           await unbindGaotao(wsDir, context.sessionID)
           await removeSessionWorkspace(directory, sessionId)
@@ -88,6 +87,7 @@ export function createModuleAgentDone(client: OpencodeClient) {
           await removeModuleSession(wsDir, moduleName, sessionId)
           clearAgentMode(directory, sessionId)
           await deleteExecutionRecords(wsDir, moduleName, sessionId)
+          await releasePlanFilesSession(directory, moduleName, sessionId)
           await clearSessionChecked(wsDir, sessionId)
           clearActivity(sessionId)
           const planId = await getPlanIdBySession(wsDir, sessionId)
@@ -120,7 +120,6 @@ export function createModuleAgentDone(client: OpencodeClient) {
         await client.session.delete({ path: { id: sessionId } })
         clearAgentMode(directory, sessionId)
         clearActivity(sessionId)
-        clearReviewerMapping(sessionId)
         await deleteReviewResult(wsDir, sessionId)
         await unbindGaotao(wsDir, context.sessionID)
         await removeSessionWorkspace(directory, sessionId)
@@ -146,6 +145,7 @@ export function createModuleAgentDone(client: OpencodeClient) {
       await removeModuleSession(wsDir, moduleName, sessionId)
       clearAgentMode(directory, sessionId)
       await deleteExecutionRecords(wsDir, moduleName, sessionId)
+      await releasePlanFilesSession(directory, moduleName, sessionId)
       await clearSessionChecked(wsDir, sessionId)
       clearActivity(sessionId)
       const planId = await getPlanIdBySession(wsDir, sessionId)

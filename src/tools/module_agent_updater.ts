@@ -19,7 +19,7 @@ import { modifyDefinition, readModuleDefinition, writeModuleDefinition } from '.
 import { writeExecutionRecord } from '../lib/execution_result.ts'
 import { exists, readText, writeText } from '../lib/fs.ts'
 import { addPlanFiles, removePlanFiles } from '../lib/plan_files.ts'
-import { isReviewer, readReviewResult, writeReviewResult } from '../lib/review_result.ts'
+import { readReviewResult, writeReviewResult } from '../lib/review_result.ts'
 import type { PlanReview, ReviewIssue } from '../lib/review_result.ts'
 import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
 import { getPlanIdBySession } from '../lib/session_plan_map.ts'
@@ -230,10 +230,6 @@ async function handleRemovePlanFiles(directory: string, args: any): Promise<Tool
 }
 
 async function handleWriteReview(workspaceDir: string, args: any, reviewerSessionId: string): Promise<ToolResult> {
-  if (!isReviewer(reviewerSessionId)) {
-    return { title: '审查信息缺失', output: JSON.stringify({ status: 'error', error: '当前会话不是审查会话。' }) }
-  }
-
   const planId = args.plan_id as string
   if (!planId) {
     return { title: '参数错误', output: JSON.stringify({ status: 'error', error: 'write_review 需要 plan_id' }) }

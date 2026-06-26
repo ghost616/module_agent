@@ -15,7 +15,7 @@ import {
   deleteExecutionRecords,
   writeExecutionRecord,
 } from '../lib/execution_result.ts'
-import { readReviewResult, writeReviewResult, registerReviewer, deleteReviewResult } from '../lib/review_result.ts'
+import { readReviewResult, deleteReviewResult } from '../lib/review_result.ts'
 import { savePlan } from '../lib/development_plan.ts'
 import { getFirstPendingReview } from '../lib/development_plan.ts'
 import { recordMapping } from '../lib/session_plan_map.ts'
@@ -30,6 +30,8 @@ export function createModuleAgentExecutor(client: OpencodeClient) {
       action: tool.schema.enum(['start', 'status', 'ping', 'start_review', 'review_status', 'check_reviewer']).describe('操作类型：start 启动执行，status 查询力牧状态，ping 二次检查提醒力牧写入执行总结，start_review 启动皋陶代码审查，review_status 查询皋陶审查结果，check_reviewer 检查皋陶是否空闲'),
       module_name: tool.schema.string().optional().describe('模块唯一标识名称（action=start/status 时必填）'),
       development_plan: tool.schema.string().optional().describe('开发计划文本（action=start 时必填）'),
+      plan_id: tool.schema.string().optional().describe('计划 ID，由风后通过 generate_id(id_type="plan") 生成（action=start 时必填）'),
+      plan_summary: tool.schema.string().optional().describe('计划简要说明（action=start 时必填）'),
       session_id: tool.schema.string().optional().describe('会话 ID（action=status 时必填）'),
       code_conventions: tool.schema.string().optional().describe('风后传入的代码规范，若代码规范文件为空时必须传入，文件不为空则无需传入'),
       confirmation_code: tool.schema.string().optional().describe('确认码（action=start/start_review 时必填）'),
@@ -411,8 +413,6 @@ async function handleStartReview(
   }
 
   recordActivity(reviewerSessionId)
-
-  registerReviewer(reviewerSessionId)
 
   await setSessionWorkspace(directory, reviewerSessionId, workspaceName)
 

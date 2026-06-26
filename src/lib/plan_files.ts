@@ -87,3 +87,23 @@ export async function removePlanFiles(
     await writeText(path, JSON.stringify(existing, null, 2))
   }
 }
+
+export async function releasePlanFilesSession(
+  directory: string,
+  moduleName: string,
+  sessionId: string,
+): Promise<void> {
+  const existing = await readPlanFiles(directory, moduleName)
+  if (!existing) return
+
+  const idx = existing.sessions.findIndex((s) => s.session_id === sessionId)
+  if (idx === -1) return
+  existing.sessions.splice(idx, 1)
+
+  const path = planFilesPath(directory, moduleName)
+  if (existing.sessions.length === 0) {
+    try { await unlink(path) } catch { /* ignore */ }
+  } else {
+    await writeText(path, JSON.stringify(existing, null, 2))
+  }
+}
