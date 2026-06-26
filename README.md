@@ -81,7 +81,7 @@
 | 力牧 | 需 `checkLimuPlanActive` 通过 | 需计划检测通过 | 需计划检测通过 | 需 `limuPlanGuard` 通过 |
 | 皋陶 | **throw 阻断** | 允许 | 允许 | 仅限 `module_agent_plan` + `module_agent_updater` |
 
-## 工具清单（18 个自定义工具）
+## 工具清单（19 个自定义工具）
 
 ### 编排调度
 
@@ -105,6 +105,7 @@
 | `module_agent_analyzer` | 关键字匹配与代码元数据提取（隶首、风后） |
 | `module_agent_line_reader` | 按行号读取文件（隶首、风后） |
 | `workspace` | 工作空间管理（创建/绑定/列表/状态） |
+| `module_agent_cleanup` | 清理失效数据：空间内（clean_workspace）/ 空间外（clean_external），由风后手动触发 |
 
 ### 执行追踪
 

@@ -152,3 +152,38 @@ export async function isGaotaoBoundToFengzhou(
   const data = await readGaotaoMap(workspaceDir)
   return data[fengzhouSessionId] === gaotaoSessionId
 }
+
+export async function cleanStaleModuleSessions(
+  workspaceDir: string,
+  isAlive: (sessionId: string) => Promise<boolean>,
+): Promise<number> {
+  const data = await readSessions(workspaceDir)
+  let removed = 0
+  for (const key of Object.keys(data)) {
+    const kept: string[] = []
+    for (const sid of data[key]) {
+      if (await isAlive(sid)) kept.push(sid)
+      else removed++
+    }
+    if (kept.length === 0) delete data[key]
+    else data[key] = kept
+  }
+  if (removed > 0) await writeSessions(workspaceDir, data)
+  return removed
+}
+
+export async function cleanStaleGaotaoMap(
+  workspaceDir: string,
+  isAlive: (sessionId: string) => Promise<boolean>,
+): Promise<number> {
+  const data = await readGaotaoMap(workspaceDir)
+  let removed = 0
+  for (const [fsid, gsid] of Object.entries(data)) {
+    if (!(await isAlive(fsid)) || !(await isAlive(gsid))) {
+      delete data[fsid]
+      removed++
+    }
+  }
+  if (removed > 0) await writeGaotaoMap(workspaceDir, data)
+  return removed
+}

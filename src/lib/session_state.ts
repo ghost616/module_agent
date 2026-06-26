@@ -61,3 +61,27 @@ export function clearAgentMode(directory: string, sessionID: string): void {
   getOrCreateMap(directory).delete(sessionID)
   persistAsync(directory)
 }
+
+export async function cleanStaleAgentModes(
+  directory: string,
+  isAlive: (sessionId: string) => Promise<boolean>,
+): Promise<number> {
+  const map = getOrCreateMap(directory)
+  let removed = 0
+  for (const sid of [...map.keys()]) {
+    if (!(await isAlive(sid))) {
+      map.delete(sid)
+      removed++
+    }
+  }
+  if (removed > 0) {
+    const obj: Record<string, string> = {}
+    for (const [key, value] of map) {
+      obj[key] = value
+    }
+    const path = sessionModesPath(directory)
+    await mkdir(dirname(path), { recursive: true })
+    await writeText(path, JSON.stringify(obj))
+  }
+  return removed
+}

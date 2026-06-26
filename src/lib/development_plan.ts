@@ -153,3 +153,21 @@ export async function deleteCompletedPlans(workspaceDir: string): Promise<number
   }
   return deleted
 }
+
+export async function cleanStalePlans(
+  workspaceDir: string,
+  isAlive: (sessionId: string) => Promise<boolean>,
+): Promise<string[]> {
+  const metadata = await readAllMetadata(workspaceDir)
+  const deleted: string[] = []
+  for (const meta of metadata) {
+    const plan = await readPlan(workspaceDir, meta.plan_id)
+    if (!plan) continue
+    if (!(await isAlive(plan.session_id))) {
+      if (await deletePlan(workspaceDir, meta.plan_id)) {
+        deleted.push(meta.plan_id)
+      }
+    }
+  }
+  return deleted
+}

@@ -1,4 +1,4 @@
-import { mkdir, unlink } from 'node:fs/promises'
+import { mkdir, unlink, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { exists, readJson, writeText } from './fs.ts'
 
@@ -60,4 +60,23 @@ export async function deleteReviewResult(
   if (!(await exists(path))) return false
   await unlink(path)
   return true
+}
+
+export async function cleanStaleReviewResults(
+  workspaceDir: string,
+  isAlive: (sessionId: string) => Promise<boolean>,
+): Promise<number> {
+  const dir = reviewDir(workspaceDir)
+  if (!(await exists(dir))) return 0
+  let removed = 0
+  const files = await readdir(dir)
+  for (const f of files) {
+    if (!f.endsWith('.json')) continue
+    const sid = f.slice(0, -5)
+    if (!(await isAlive(sid))) {
+      await unlink(join(dir, f))
+      removed++
+    }
+  }
+  return removed
 }

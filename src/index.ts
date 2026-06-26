@@ -17,6 +17,7 @@ import { moduleAgentAnalyzer } from './tools/module_agent_analyzer.ts'
 import { moduleAgentLineReader } from './tools/module_agent_line_reader.ts'
 import { moduleClassification } from './tools/module_classification.ts'
 import { createModuleAgentClassifier } from './tools/module_agent_classifier.ts'
+import { createModuleAgentCleanup } from './tools/module_agent_cleanup.ts'
 import { initSessionState, getAgentMode } from './lib/session_state.ts'
 import { clearActivity, recordActivity } from './lib/limu_monitor.ts'
 import { checkLimuPlanActive } from './lib/limu_plan_guard.ts'
@@ -37,6 +38,7 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
   const moduleAgentDone = createModuleAgentDone(ctx.client)
   const moduleAgentSetup = createModuleAgentSetup(ctx.client)
   const moduleAgentClassifier = createModuleAgentClassifier(ctx.client)
+  const moduleAgentCleanup = createModuleAgentCleanup(ctx.client)
 
   return {
     tool: {
@@ -58,6 +60,7 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
       module_agent_line_reader: moduleAgentLineReader,
       module_classification: moduleClassification,
       module_agent_classifier: moduleAgentClassifier,
+      module_agent_cleanup: moduleAgentCleanup,
     },
 
     // ============================================================
@@ -74,6 +77,7 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
         'module_agent_analyzer',
         'module_agent_line_reader',
         'module_classification',
+        'module_agent_cleanup',
       ]
       if (customTools.includes(input.type)) {
         output.status = 'allow'

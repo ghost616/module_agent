@@ -107,3 +107,21 @@ export async function releasePlanFilesSession(
     await writeText(path, JSON.stringify(existing, null, 2))
   }
 }
+
+export async function cleanStalePlanFilesForModule(
+  directory: string,
+  moduleName: string,
+  isAlive: (sessionId: string) => Promise<boolean>,
+): Promise<number> {
+  const existing = await readPlanFiles(directory, moduleName)
+  if (!existing) return 0
+  const sessionIds = existing.sessions.map((s) => s.session_id)
+  let removed = 0
+  for (const sid of sessionIds) {
+    if (!(await isAlive(sid))) {
+      await releasePlanFilesSession(directory, moduleName, sid)
+      removed++
+    }
+  }
+  return removed
+}

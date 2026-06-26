@@ -85,3 +85,19 @@ export async function resolveWorkspace(directory: string, sessionId: string): Pr
   const { getSessionWorkspace } = await import('./session_workspace.ts')
   return getSessionWorkspace(directory, sessionId)
 }
+
+export async function cleanStaleBindings(
+  directory: string,
+  isAlive: (sessionId: string) => Promise<boolean>,
+): Promise<number> {
+  const idx = await readIndex(directory)
+  let removed = 0
+  for (const fengzhouSessionId of Object.keys(idx.bindings)) {
+    if (!(await isAlive(fengzhouSessionId))) {
+      delete idx.bindings[fengzhouSessionId]
+      removed++
+    }
+  }
+  if (removed > 0) await writeIndex(directory, idx)
+  return removed
+}

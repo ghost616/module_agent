@@ -42,3 +42,19 @@ export async function removeSessionWorkspace(directory: string, sessionId: strin
   delete data[sessionId]
   await writeMap(directory, data)
 }
+
+export async function cleanStaleSessionWorkspaces(
+  directory: string,
+  isAlive: (sessionId: string) => Promise<boolean>,
+): Promise<number> {
+  const data = await readMap(directory)
+  let removed = 0
+  for (const sid of Object.keys(data)) {
+    if (!(await isAlive(sid))) {
+      delete data[sid]
+      removed++
+    }
+  }
+  if (removed > 0) await writeMap(directory, data)
+  return removed
+}

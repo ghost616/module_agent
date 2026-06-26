@@ -54,3 +54,21 @@ export async function removeMappingByPlanId(workspaceDir: string, planId: string
   }
   return removed
 }
+
+export async function cleanStaleSessionPlanMap(
+  workspaceDir: string,
+  isAlive: (sessionId: string) => Promise<boolean>,
+): Promise<number> {
+  const map = await readMap(workspaceDir)
+  let removed = 0
+  for (const sid of Object.keys(map)) {
+    if (!(await isAlive(sid))) {
+      delete map[sid]
+      removed++
+    }
+  }
+  if (removed > 0) {
+    await writeMap(workspaceDir, map)
+  }
+  return removed
+}

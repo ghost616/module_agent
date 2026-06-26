@@ -17,8 +17,8 @@ import {
 } from '../lib/execution_result.ts'
 import { readReviewResult, deleteReviewResult } from '../lib/review_result.ts'
 import { savePlan } from '../lib/development_plan.ts'
-import { getFirstPendingReview } from '../lib/development_plan.ts'
-import { recordMapping } from '../lib/session_plan_map.ts'
+import { getFirstPendingReview, readAllMetadata } from '../lib/development_plan.ts'
+import { recordMapping, getPlanIdBySession } from '../lib/session_plan_map.ts'
 import { REVIEWER_RULES } from '../lib/reviewer_rules.ts'
 import { getBoundWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
 import { setSessionWorkspace } from '../lib/session_workspace.ts'
@@ -488,9 +488,29 @@ async function handleStatus(
     }
   }
 
+  const lastPlanId = await getPlanIdBySession(workspaceDir, session_id)
+  const meta = lastPlanId
+    ? (await readAllMetadata(workspaceDir)).find(m => m.plan_id === lastPlanId)
+    : undefined
+
+  if (!meta) {
+    return {
+      title: `模块 '${module_name}' 没有执行计划`,
+      output: JSON.stringify({ type: 'limu', finished: true, plan_id: null, message: `模块 '${module_name}' 没有执行计划。`, last_activity: activity ?? null, idle_seconds: idleSeconds, unresponsive: false }),
+    }
+  }
+
+  if (meta.plan_completed) {
+    await clearSessionChecked(workspaceDir, session_id)
+    return {
+      title: `模块 '${module_name}' 执行完成`,
+      output: JSON.stringify({ type: 'limu', finished: true, plan_id: lastPlanId, plan_completed: true, last_activity: activity ?? null, idle_seconds: idleSeconds, unresponsive: false }),
+    }
+  }
+
   return {
     title: `模块 '${module_name}' 执行中`,
-    output: JSON.stringify({ type: 'limu', finished: false, message: '力牧正在执行，暂无执行结果记录。', last_activity: activity ?? null, idle_seconds: idleSeconds, unresponsive }),
+    output: JSON.stringify({ type: 'limu', finished: false, plan_id: lastPlanId, plan_completed: false, message: '力牧正在执行，暂无执行结果记录。', last_activity: activity ?? null, idle_seconds: idleSeconds, unresponsive }),
   }
 }
 

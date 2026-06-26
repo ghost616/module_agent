@@ -1,4 +1,4 @@
-import { mkdir, unlink } from 'node:fs/promises'
+import { mkdir, unlink, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ExecutionRecord, ExecutionRecords } from './types.ts'
 import { exists, readJson, writeText } from './fs.ts'
@@ -95,4 +95,28 @@ export async function deleteExecutionRecords(
   sessionId: string,
 ): Promise<boolean> {
   return _deleteExecutionRecords(workspaceDir, moduleName, sessionId)
+}
+
+export async function cleanStaleExecutions(
+  workspaceDir: string,
+  isAlive: (sessionId: string) => Promise<boolean>,
+): Promise<number> {
+  const root = join(workspaceDir, 'executions')
+  if (!(await exists(root))) return 0
+  let removed = 0
+  const modules = await readdir(root, { withFileTypes: true })
+  for (const m of modules) {
+    if (!m.isDirectory()) continue
+    const modDir = join(root, m.name)
+    const files = await readdir(modDir)
+    for (const f of files) {
+      if (!f.endsWith('.json')) continue
+      const sid = f.slice(0, -5)
+      if (!(await isAlive(sid))) {
+        await unlink(join(modDir, f))
+        removed++
+      }
+    }
+  }
+  return removed
 }
