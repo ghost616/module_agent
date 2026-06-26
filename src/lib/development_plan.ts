@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readdir } from 'node:fs/promises'
 import { exists, readText, readJson, writeText } from './fs.ts'
 
 export interface PlanMeta {
@@ -158,14 +158,17 @@ export async function cleanStalePlans(
   workspaceDir: string,
   isAlive: (sessionId: string) => Promise<boolean>,
 ): Promise<string[]> {
-  const metadata = await readAllMetadata(workspaceDir)
+  const dir = getPlanDir(workspaceDir)
+  if (!(await exists(dir))) return []
+  const files = await readdir(dir)
   const deleted: string[] = []
-  for (const meta of metadata) {
-    const plan = await readPlan(workspaceDir, meta.plan_id)
-    if (!plan) continue
-    if (!(await isAlive(plan.session_id))) {
-      if (await deletePlan(workspaceDir, meta.plan_id)) {
-        deleted.push(meta.plan_id)
+  for (const f of files) {
+    if (!f.endsWith('.json') || f === 'metadata.json') continue
+    const planId = f.slice(0, -5)
+    const plan = await readPlan(workspaceDir, planId)
+    if (!plan || !(await isAlive(plan.session_id))) {
+      if (await deletePlan(workspaceDir, planId)) {
+        deleted.push(planId)
       }
     }
   }
