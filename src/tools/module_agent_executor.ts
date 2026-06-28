@@ -130,9 +130,13 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
       —— 对 current_spec.md 中受影响的 ## 二级标题做增量更新
 
    b. 调用 module_agent_updater(action="update_definition", ...)
-      —— 若有新文件：传入 files_to_add
+      —— 若有新文件：传入 files_to_add（description 为该文件【整体功能职责】的完整说明）
       —— 若有文件删除：传入 files_to_remove
-      —— 若文件功能说明改变：传入 files_to_update
+      —— 若文件功能说明需要变化：传入 files_to_update
+      —— 重要：description 是该文件【整体职责的累积性完整说明】，不是本次计划的变更记录；
+         files_to_update 会整体替换旧 description。必须基于步骤 1 read_definition 读到的现有说明，
+         在保留文件原有职责的基础上合并本次新增/变化的功能，禁止只写本次计划内容而覆盖历史说明。
+         本次计划的具体变更请记录在步骤 c 的 append_history 中。
 
    c. 调用 module_agent_updater(action="append_history", ...)
       —— 传入变更描述

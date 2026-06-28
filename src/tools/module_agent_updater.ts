@@ -46,11 +46,11 @@ export const moduleAgentUpdater = tool({
     mode: tool.schema.enum(['set', 'add']).optional().describe('update_spec：set=替换；add=追加（默认 add）'),
     files_to_add: tool.schema.array(
       tool.schema.object({ path: tool.schema.string(), description: tool.schema.string() })
-    ).optional().describe('update_definition：新增文件条目'),
+    ).optional().describe('update_definition：新增文件条目（description 为该文件整体功能职责的完整说明）'),
     files_to_remove: tool.schema.array(tool.schema.string()).optional().describe('update_definition：按路径删除文件条目'),
     files_to_update: tool.schema.array(
       tool.schema.object({ path: tool.schema.string(), description: tool.schema.string() })
-    ).optional().describe('update_definition：按路径更新 description'),
+    ).optional().describe('update_definition：按路径更新 description（会整体替换旧 description，须提供包含文件已有职责的完整累积说明，避免覆盖历史说明；本次计划变更请记入 append_history）'),
     target_module_name: tool.schema.string().optional().describe('move_definition：目标模块名称'),
     paths: tool.schema.array(tool.schema.string()).optional().describe('move_definition：要移动的文件路径列表'),
     session_id: tool.schema.string().optional().describe('append_history / move_definition / write_result / add_plan_files / remove_plan_files：会话 ID（力牧调用时自动从上下文获取，无需传入）'),

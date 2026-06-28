@@ -135,7 +135,7 @@ export const updaterDefinitionSchema = z.object({
   files_to_add: z
     .array(fileEntrySchema)
     .optional()
-    .describe('新增文件条目（path 已存在则跳过）'),
+    .describe('新增文件条目（path 已存在则跳过；description 为该文件整体功能职责的完整说明）'),
   files_to_remove: z
     .array(z.string())
     .optional()
@@ -143,7 +143,7 @@ export const updaterDefinitionSchema = z.object({
   files_to_update: z
     .array(fileEntrySchema)
     .optional()
-    .describe('按 path 更新 description'),
+    .describe('按 path 更新 description（会整体替换旧 description，须提供包含文件已有职责的完整累积说明，避免丢失历史说明；本次计划的变更应记入 change_history 而非 description）'),
 }).refine(
   (v) => v.files_to_add || v.files_to_remove || v.files_to_update,
   { message: '至少提供一个操作：files_to_add / files_to_remove / files_to_update' },
