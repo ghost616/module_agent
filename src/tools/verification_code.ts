@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto'
 
 const latestCodes = new Map<string, string>()
 
+export const CODE_CONSUMED_NOTICE = '确认码已作废，请重新生成'
+
 export function generateId(idType: string): string {
   return `${idType}_${randomUUID()}`
 }
@@ -48,7 +50,7 @@ export const verificationCode = tool({
 
     latestCodes.set(context.sessionID, code)
 
-    return `验证码: ${code}`
+    return `验证码: ${code}（确认码是一次性的，使用后请重新生成）`
   },
 })
 

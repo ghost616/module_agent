@@ -3,7 +3,7 @@ import type { ToolResult } from '@opencode-ai/plugin'
 import type { OpencodeClient } from '@opencode-ai/sdk'
 import { executorStartSchema, executorStatusSchema } from '../lib/constants.ts'
 import { getAgentMode, setAgentMode } from '../lib/session_state.ts'
-import { validateConfirmationCode } from './verification_code.ts'
+import { validateConfirmationCode, CODE_CONSUMED_NOTICE } from './verification_code.ts'
 import { recordActivity, getLastActivity } from '../lib/limu_monitor.ts'
 import { isWorking } from '../lib/limu_monitor.ts'
 import { getModuleLimuSession, addModuleSession, markSessionChecked, clearSessionChecked, getBoundGaotao, bindGaotao } from '../lib/module_session_tracker.ts'
@@ -223,7 +223,7 @@ async function handleStart(
 
     return {
       title: `模块 '${module_name}' 重用已有力牧`,
-      output: JSON.stringify({ session_id: reusable, plan_id, reused: true }),
+      output: JSON.stringify({ session_id: reusable, plan_id, reused: true, notice: CODE_CONSUMED_NOTICE }),
     }
   }
 
@@ -319,7 +319,7 @@ async function handleStart(
 
   return {
     title: `模块 '${module_name}' 执行已启动`,
-    output: JSON.stringify({ session_id: sessionId, plan_id, reused: false }),
+      output: JSON.stringify({ session_id: sessionId, plan_id, reused: false, notice: CODE_CONSUMED_NOTICE }),
   }
 }
 
@@ -358,7 +358,7 @@ async function handleStartReview(
     if (!pending) {
       return {
         title: '无待审查计划',
-        output: JSON.stringify({ status: 'ok', message: '当前没有需要代码审查的计划。', reviewer_session_id: boundGaotao }),
+        output: JSON.stringify({ status: 'ok', message: '当前没有需要代码审查的计划。', reviewer_session_id: boundGaotao, notice: CODE_CONSUMED_NOTICE }),
       }
     }
 
@@ -373,7 +373,7 @@ async function handleStartReview(
 
     return {
       title: '重用已有皋陶',
-      output: JSON.stringify({ reviewer_session_id: boundGaotao, reused: true }),
+      output: JSON.stringify({ reviewer_session_id: boundGaotao, reused: true, notice: CODE_CONSUMED_NOTICE }),
     }
   }
 
@@ -431,7 +431,7 @@ async function handleStartReview(
 
   return {
     title: '审查已启动',
-    output: JSON.stringify({ reviewer_session_id: reviewerSessionId }),
+      output: JSON.stringify({ reviewer_session_id: reviewerSessionId, notice: CODE_CONSUMED_NOTICE }),
   }
 }
 

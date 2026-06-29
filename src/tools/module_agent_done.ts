@@ -2,7 +2,7 @@ import { tool } from '@opencode-ai/plugin'
 import type { ToolResult } from '@opencode-ai/plugin'
 import type { OpencodeClient } from '@opencode-ai/sdk'
 import { getAgentMode, clearAgentMode } from '../lib/session_state.ts'
-import { validateConfirmationCode } from './verification_code.ts'
+import { validateConfirmationCode, CODE_CONSUMED_NOTICE } from './verification_code.ts'
 import { removeModuleSession, isSessionChecked, clearSessionChecked, unbindGaotao, isGaotaoBoundToFengzhou } from '../lib/module_session_tracker.ts'
 import { deleteExecutionRecords, readAndCleanExecutionRecords } from '../lib/execution_result.ts'
 import { clearActivity } from '../lib/limu_monitor.ts'
@@ -99,7 +99,7 @@ export function createModuleAgentDone(client: OpencodeClient) {
         }
         return {
           title: '会话不存在',
-          output: JSON.stringify({ status: 'ok', message: `会话 ${sessionId} 不存在，已清理关联数据。` }),
+          output: JSON.stringify({ status: 'ok', message: `会话 ${sessionId} 不存在，已清理关联数据。`, notice: CODE_CONSUMED_NOTICE }),
         }
       }
 
@@ -126,7 +126,7 @@ export function createModuleAgentDone(client: OpencodeClient) {
 
         return {
           title: '皋陶已关闭',
-          output: JSON.stringify({ status: 'ok', message: `模块 '${moduleName}' 的皋陶会话 ${sessionId} 已关闭。` }),
+          output: JSON.stringify({ status: 'ok', message: `模块 '${moduleName}' 的皋陶会话 ${sessionId} 已关闭。`, notice: CODE_CONSUMED_NOTICE }),
         }
       }
 
@@ -157,7 +157,7 @@ export function createModuleAgentDone(client: OpencodeClient) {
 
       return {
         title: '力牧已关闭',
-        output: JSON.stringify({ status: 'ok', message: `模块 '${moduleName}' 的力牧会话 ${sessionId} 已关闭。` }),
+        output: JSON.stringify({ status: 'ok', message: `模块 '${moduleName}' 的力牧会话 ${sessionId} 已关闭。`, notice: CODE_CONSUMED_NOTICE }),
       }
     },
   })
