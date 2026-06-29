@@ -75,31 +75,6 @@ export const moduleAgentPlan = tool({
       }
     }
 
-    const planId = args.plan_id as string | undefined
-    if (!planId) {
-      return { title: '参数错误', output: JSON.stringify({ status: 'error', error: 'plan_id 必填' }) }
-    }
-
-    if (action === 'read_plan') {
-      const plan = await readPlan(wsDir, planId)
-      if (!plan) {
-        return {
-          title: '计划不存在',
-          output: JSON.stringify({ status: 'error', error: `计划 ${planId} 不存在` }),
-        }
-      }
-      return {
-        title: `计划 ${planId}`,
-        output: JSON.stringify({
-          plan_id: plan.plan_id,
-          module_name: plan.module_name,
-          development_plan: plan.development_plan,
-          modified_files: plan.modified_files,
-          session_id: plan.session_id,
-        }),
-      }
-    }
-
     if (action === 'plan_complete') {
       const validate = planCompleteSchema.passthrough().safeParse(args)
       if (!validate.success) {
@@ -130,6 +105,59 @@ export const moduleAgentPlan = tool({
       }
     }
 
+    if (action === 'get_pending_review') {
+      const plan = await getFirstPendingReview(wsDir)
+      if (!plan) {
+        return {
+          title: '无待审查计划',
+          output: JSON.stringify({ status: 'ok', message: '当前没有已完成且未审查的计划' }),
+        }
+      }
+      return {
+        title: `待审查计划 ${plan.plan_id}`,
+        output: JSON.stringify({
+          plan_id: plan.plan_id,
+          module_name: plan.module_name,
+          development_plan: plan.development_plan,
+          modified_files: plan.modified_files,
+          session_id: plan.session_id,
+        }),
+      }
+    }
+
+    if (action === 'clean_completed') {
+      const count = await deleteCompletedPlans(wsDir)
+      return {
+        title: `已清理 ${count} 个计划`,
+        output: JSON.stringify({ status: 'ok', deleted: count }),
+      }
+    }
+
+    const planId = args.plan_id as string | undefined
+    if (!planId) {
+      return { title: '参数错误', output: JSON.stringify({ status: 'error', error: 'plan_id 必填' }) }
+    }
+
+    if (action === 'read_plan') {
+      const plan = await readPlan(wsDir, planId)
+      if (!plan) {
+        return {
+          title: '计划不存在',
+          output: JSON.stringify({ status: 'error', error: `计划 ${planId} 不存在` }),
+        }
+      }
+      return {
+        title: `计划 ${planId}`,
+        output: JSON.stringify({
+          plan_id: plan.plan_id,
+          module_name: plan.module_name,
+          development_plan: plan.development_plan,
+          modified_files: plan.modified_files,
+          session_id: plan.session_id,
+        }),
+      }
+    }
+
     if (action === 'delete_plan') {
       const ok = await deletePlan(wsDir, planId)
       if (!ok) {
@@ -156,34 +184,6 @@ export const moduleAgentPlan = tool({
       return {
         title: '审查已标记完成',
         output: JSON.stringify({ status: 'ok', plan_id: planId }),
-      }
-    }
-
-    if (action === 'get_pending_review') {
-      const plan = await getFirstPendingReview(wsDir)
-      if (!plan) {
-        return {
-          title: '无待审查计划',
-          output: JSON.stringify({ status: 'ok', message: '当前没有已完成且未审查的计划' }),
-        }
-      }
-      return {
-        title: `待审查计划 ${plan.plan_id}`,
-        output: JSON.stringify({
-          plan_id: plan.plan_id,
-          module_name: plan.module_name,
-          development_plan: plan.development_plan,
-          modified_files: plan.modified_files,
-          session_id: plan.session_id,
-        }),
-      }
-    }
-
-    if (action === 'clean_completed') {
-      const count = await deleteCompletedPlans(wsDir)
-      return {
-        title: `已清理 ${count} 个计划`,
-        output: JSON.stringify({ status: 'ok', deleted: count }),
       }
     }
 
