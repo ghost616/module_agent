@@ -22,6 +22,7 @@ import { recordMapping, getPlanIdBySession } from '../lib/session_plan_map.ts'
 import { REVIEWER_RULES } from '../lib/reviewer_rules.ts'
 import { getBoundWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
 import { setSessionWorkspace } from '../lib/session_workspace.ts'
+import { readAgentModelConfig } from '../lib/agent_model_config.ts'
 
 export function createModuleAgentExecutor(client: OpencodeClient) {
   return tool({
@@ -170,6 +171,9 @@ async function handleStart(
     }
   }
 
+  // 读取工作空间模型配置
+  const modelConfig = await readAgentModelConfig(workspaceDir)
+
   // 查找可复用的力牧会话
   const reusable = await getModuleLimuSession(workspaceDir, module_name, client)
 
@@ -228,6 +232,13 @@ async function handleStart(
   }
 
   // 创建新会话
+  if (!modelConfig?.limu) {
+    return {
+      title: '未配置力牧模型',
+      output: JSON.stringify({ status: 'error', error: '请先使用 agent_model_config(action="set", limu_provider_id="...", limu_model_id="...") 为当前工作空间设置力牧默认模型' }),
+    }
+  }
+
   const agentProfile = await readAgentProfile(directory, module_name)
   if (!agentProfile) {
     return {
@@ -274,6 +285,7 @@ async function handleStart(
   const promptResult = await client.session.promptAsync({
     path: { id: sessionId },
     body: {
+      ...(modelConfig?.limu ? { model: modelConfig.limu } : {}),
       system: systemPrompt,
       parts: [{ type: 'text', text: development_plan }],
     },
@@ -344,6 +356,9 @@ async function handleStartReview(
   let codeConventions = await readCodeConventions(directory)
   if (!codeConventions) codeConventions = ''
 
+  // 读取工作空间模型配置
+  const modelConfig = await readAgentModelConfig(workspaceDir)
+
   const boundGaotao = await getBoundGaotao(workspaceDir, fengzhouSessionId, client)
 
   if (boundGaotao) {
@@ -377,6 +392,13 @@ async function handleStartReview(
     }
   }
 
+  if (!modelConfig?.gaotao) {
+    return {
+      title: '未配置皋陶模型',
+      output: JSON.stringify({ status: 'error', error: '请先使用 agent_model_config(action="set", gaotao_provider_id="...", gaotao_model_id="...") 为当前工作空间设置皋陶默认模型' }),
+    }
+  }
+
   const sessionResult = await client.session.create({
     body: { title: 'review' },
   })
@@ -404,6 +426,7 @@ async function handleStartReview(
   const promptResult = await client.session.promptAsync({
     path: { id: reviewerSessionId },
     body: {
+      ...(modelConfig?.gaotao ? { model: modelConfig.gaotao } : {}),
       system: systemPrompt,
       parts: [{ type: 'text', text: '请执行代码审查循环：调用 module_agent_plan(action="get_pending_review") 获取待审查计划并执行审查，直到无待审查计划为止。' }],
     },
