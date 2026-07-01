@@ -21,7 +21,7 @@ import { getFirstPendingReview, readAllMetadata } from '../lib/development_plan.
 import { recordMapping, getPlanIdBySession } from '../lib/session_plan_map.ts'
 import { REVIEWER_RULES } from '../lib/reviewer_rules.ts'
 import { LIZHU_RULES } from '../lib/lizhu_rules.ts'
-import { getBoundWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
+import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
 import { setSessionWorkspace } from '../lib/session_workspace.ts'
 import { readAgentModelConfig, validateModelConfig } from '../lib/agent_model_config.ts'
 
@@ -59,7 +59,7 @@ export function createModuleAgentExecutor(client: OpencodeClient) {
 
       const directory = context.directory
 
-      const boundWs = await getBoundWorkspace(directory, context.sessionID)
+      const boundWs = await resolveWorkspace(directory, context.sessionID)
       if (!boundWs) {
         return {
           title: '未绑定工作空间',

@@ -131,8 +131,7 @@ async function handleReadTestResults(directory: string, sessionId: string, args:
 
   const reportPath = join(wsDir, 'test_reports', `${lizhuSid}.json`)
   if (!(await exists(reportPath))) {
-    await unbindLizhu(wsDir, sessionId)
-    return { title: '无测试报告', output: JSON.stringify({ status: 'error', error: '离朱尚未生成测试报告', lizhu_session_id: lizhuSid }) }
+    return { title: '无测试报告', output: JSON.stringify({ status: 'ok', message: '离朱尚未生成测试报告', lizhu_session_id: lizhuSid }) }
   }
 
   let report: any
