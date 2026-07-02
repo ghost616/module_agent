@@ -7,6 +7,7 @@ export interface PlanMeta {
   plan_summary: string
   code_reviewed: boolean
   plan_completed: boolean
+  test_passed: boolean
 }
 
 export interface PlanDetail {
@@ -73,6 +74,7 @@ export async function savePlan(
     plan_summary: planSummary,
     code_reviewed: false,
     plan_completed: false,
+    test_passed: false,
   }
   if (existing >= 0) {
     metadata[existing] = entry
@@ -117,6 +119,19 @@ export async function markPlanComplete(
     entry.plan_completed = true
     await writeText(getMetadataPath(workspaceDir), JSON.stringify(metadata, null, 2))
   }
+  return true
+}
+
+export async function markTestPassed(
+  workspaceDir: string,
+  planId: string,
+  testPassed: boolean,
+): Promise<boolean> {
+  const metadata = await readAllMetadata(workspaceDir)
+  const entry = metadata.find(m => m.plan_id === planId)
+  if (!entry) return false
+  entry.test_passed = testPassed
+  await writeText(getMetadataPath(workspaceDir), JSON.stringify(metadata, null, 2))
   return true
 }
 

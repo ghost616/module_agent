@@ -1,11 +1,12 @@
 import { tool } from '@opencode-ai/plugin'
 import type { ToolResult } from '@opencode-ai/plugin'
-import { planReadMetadataSchema, planReadPlanSchema, planCompleteSchema, planDeleteSchema, planCreateReviewSchema } from '../lib/constants.ts'
+import { planReadMetadataSchema, planReadPlanSchema, planCompleteSchema, planDeleteSchema, planCreateReviewSchema, planSetTestPassedSchema } from '../lib/constants.ts'
 import { getAgentMode } from '../lib/session_state.ts'
 import {
   readAllMetadata,
   readPlan,
   markPlanComplete,
+  markTestPassed,
   getFirstPendingReview,
   markReviewComplete,
   deletePlan,
@@ -25,6 +26,7 @@ function checkPermission(mode: AgentMode, action: string): ToolResult | null {
     read_metadata: ['fengzhou', 'gaotao'],
     read_plan: ['fengzhou'],
     plan_complete: ['limu'],
+    set_test_passed: ['limu'],
     delete_plan: ['fengzhou'],
     review_complete: ['gaotao'],
     get_pending_review: ['gaotao'],
@@ -45,13 +47,14 @@ function checkPermission(mode: AgentMode, action: string): ToolResult | null {
 export const moduleAgentPlan = tool({
   description: '开发计划管理。读取计划元数据、读取计划详情、标记计划完成、获取待审查计划、标记审查完成、清理已完成计划、删除计划、创建审查计划。',
   args: {
-    action: tool.schema.enum(['read_metadata', 'read_plan', 'plan_complete', 'delete_plan', 'review_complete', 'get_pending_review', 'clean_completed', 'create_review_plan']).describe('操作类型'),
+    action: tool.schema.enum(['read_metadata', 'read_plan', 'plan_complete', 'delete_plan', 'review_complete', 'get_pending_review', 'clean_completed', 'create_review_plan', 'set_test_passed']).describe('操作类型'),
     plan_id: tool.schema.string().optional().describe('计划 ID（read_plan/delete_plan/review_complete/create_review_plan 时必填）'),
     files: tool.schema.array(tool.schema.string()).optional().describe('修改的文件路径列表（plan_complete 时必填）'),
     review_description: tool.schema.string().optional().describe('审查范围/目的描述（create_review_plan 时必填）'),
     module_name: tool.schema.string().optional().describe('要审查的模块名称，传入后自动解析该模块下所有文件（create_review_plan 时使用）'),
     file_paths: tool.schema.array(tool.schema.string()).optional().describe('要审查的文件路径列表（create_review_plan 时使用）'),
     plan_summary: tool.schema.string().optional().describe('计划简要说明（create_review_plan 时使用）'),
+    test_passed: tool.schema.boolean().optional().describe('测试是否通过（plan_complete / set_test_passed 时使用）'),
   },
   async execute(args, context): Promise<ToolResult> {
     const mode = getAgentMode(context.directory, context.sessionID)
@@ -94,6 +97,16 @@ export const moduleAgentPlan = tool({
           output: JSON.stringify({ status: 'error', error: `当前会话未关联任何计划` }),
         }
       }
+
+      const allMeta = await readAllMetadata(wsDir)
+      const currentMeta = allMeta.find(m => m.plan_id === planId)
+      if (!currentMeta || !currentMeta.test_passed) {
+        return {
+          title: '测试未完成',
+          output: JSON.stringify({ status: 'error', error: '计划必须先通过测试才能标记完成。请先执行测试流程并调用 module_agent_plan(action="set_test_passed", plan_id="' + planId + '", test_passed=true)。' }),
+        }
+      }
+
       const files = args.files as string[]
       const plan = await readPlan(wsDir, planId)
       const ok = await markPlanComplete(wsDir, planId, files)
@@ -109,6 +122,26 @@ export const moduleAgentPlan = tool({
       return {
         title: `计划已标记完成`,
         output: JSON.stringify({ status: 'ok', plan_id: planId, modified_files: files }),
+      }
+    }
+
+    if (action === 'set_test_passed') {
+      const validate = planSetTestPassedSchema.safeParse(args)
+      if (!validate.success) {
+        return { title: '参数错误', output: JSON.stringify({ status: 'error', error: validate.error.message }) }
+      }
+      const planId = validate.data.plan_id
+      const passed = validate.data.test_passed
+      const ok = await markTestPassed(wsDir, planId, passed)
+      if (!ok) {
+        return {
+          title: '计划不存在',
+          output: JSON.stringify({ status: 'error', error: `计划 ${planId} 不存在` }),
+        }
+      }
+      return {
+        title: `测试${passed ? '通过' : '失败'}`,
+        output: JSON.stringify({ status: 'ok', plan_id: planId, test_passed: passed }),
       }
     }
 

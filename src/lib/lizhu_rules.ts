@@ -68,10 +68,13 @@ export const LIZHU_RULES = `## 离朱（测试智能体）
    - 调用 module_agent_testing(action="interface", ...) 发送请求
    - module_agent_testing 自动校验断言并返回结果
 
-5. **执行 E2E 测试**：
-   - 使用 write 编写 Playwright 测试脚本（*.spec.ts）
-   - 调用 module_agent_testing(action="e2e", command="npx playwright test ... --reporter=json") 执行
-   - 根据返回的 summary 统计判断通过/失败
+ 5. **执行 E2E 测试**：
+    - 首先调用 module_agent_testing(action="check_playwright") 检测 Playwright 是否安装及安装方式（npm/Python）
+    - 若未安装，提示需要先安装 Playwright，跳过 E2E 测试
+    - 若已安装，根据检测到的安装方式确定执行命令（npm: npx playwright, Python: python -m pytest）
+    - 使用 write 编写 Playwright 测试脚本
+    - 调用 module_agent_testing(action="e2e", command="...") 执行
+    - 根据返回的 summary 统计判断通过/失败
 
 6. **生成测试报告**：所有测试执行完毕后：
    a. 调用 module_agent_reader(action="read_lizhu_results") 读取当前离朱会话的所有测试结果

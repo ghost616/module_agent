@@ -323,6 +323,12 @@ export const planCompleteSchema = z.object({
   files: z.array(z.string()).describe('本次修改的文件路径列表'),
 })
 
+export const planSetTestPassedSchema = z.object({
+  action: z.literal('set_test_passed'),
+  plan_id: z.string().describe('计划 ID'),
+  test_passed: z.boolean().describe('测试是否通过'),
+})
+
 export const planDeleteSchema = z.object({
   action: z.literal('delete_plan'),
   plan_id: z.string().describe('计划 ID'),
@@ -356,6 +362,7 @@ export const planArgsSchema = z.discriminatedUnion('action', [
   planReadMetadataSchema,
   planReadPlanSchema,
   planCompleteSchema,
+  planSetTestPassedSchema,
   planDeleteSchema,
   planReviewCompleteSchema,
   planGetPendingReviewSchema,
@@ -406,10 +413,15 @@ export const testWriteReportSchema = z.object({
   content: z.string().describe('测试报告（Markdown 格式，包含通过/失败统计、各类型详细结果、失败用例分析、修复建议）'),
 })
 
+export const testCheckPlaywrightSchema = z.object({
+  action: z.literal('check_playwright'),
+})
+
 export const testingArgsSchema = z.discriminatedUnion('action', [
   testUnitSchema,
   testInterfaceSchema,
   testE2eSchema,
   testWriteSpecSchema,
   testWriteReportSchema,
+  testCheckPlaywrightSchema,
 ])

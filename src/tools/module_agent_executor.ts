@@ -161,8 +161,8 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
 
  6. **完成代码变更后，必须执行测试流程**，按以下顺序操作：
 
-     a. 调用 module_agent_testing(action="write_spec", content="待测试功能说明（Markdown 格式）")
-       —— 写入本次变更需要测试的功能场景
+     a. 调用 module_agent_testing(action="write_spec", content="待测试功能说明（仅列举需要测试的功能和涉及的代码文件，不包含测试方案）")
+       —— 写入本次变更需要测试的功能和涉及的代码文件
 
     b. 调用 module_agent_executor(action="start_lizhu")
        —— 启动离朱测试智能体并绑定
@@ -173,7 +173,7 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
         —— 读取离朱测试报告（读取后会自动解除绑定）
 
     e. 根据测试结果决定：
-       —— 若全部测试通过：调用 module_agent_plan(action="plan_complete", files=["..."])
+       —— 若全部测试通过：调用 module_agent_plan(action="set_test_passed", plan_id="xxx", test_passed=true); 然后调用 module_agent_plan(action="plan_complete", files=["..."])
 
        —— 若有测试失败：根据失败信息修复代码，然后回到步骤 a 重新写入测试说明并启动离朱，直到全部通过。
 

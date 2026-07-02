@@ -37,14 +37,15 @@ function printAssertions(res: { passed: number; failed: number; failures: any[] 
 }
 
 export const testRunner = tool({
-  description: `代码测试工具。支持五种操作：
+  description: `代码测试工具。支持六种操作：
 - unit：执行单元测试命令（语言无关）
 - interface：发送 HTTP API 请求并自动断言
 - e2e：执行 Playwright 端到端测试命令
 - write_spec：风后或力牧写入待测试功能说明，供测试智能体读取
-- write_report：离朱写入测试报告（Markdown 格式）`,
+- write_report：离朱写入测试报告（Markdown 格式）
+- check_playwright：检测 Playwright 是否安装（支持 npm 和 Python）`,
   args: {
-     action: tool.schema.enum(['unit', 'interface', 'e2e', 'write_spec', 'write_report']).describe('测试类型'),
+     action: tool.schema.enum(['unit', 'interface', 'e2e', 'write_spec', 'write_report', 'check_playwright']).describe('测试类型'),
     command: tool.schema.string().optional().describe('unit/e2e：测试命令'),
     method: tool.schema.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']).optional().describe('interface：HTTP 方法'),
     url: tool.schema.string().optional().describe('interface：请求 URL'),
@@ -74,6 +75,13 @@ export const testRunner = tool({
         return {
           title: '权限不足',
           output: JSON.stringify({ status: 'error', error: 'module_agent_testing action="write_spec" 仅供风后或力牧调用。' }),
+        }
+      }
+    } else if (action === 'check_playwright') {
+      if (mode !== 'fengzhou' && mode !== 'limu' && mode !== 'lizhu') {
+        return {
+          title: '权限不足',
+          output: JSON.stringify({ status: 'error', error: 'module_agent_testing action="check_playwright" 仅供风后、力牧或离朱调用。' }),
         }
       }
     } else {
@@ -237,6 +245,29 @@ export const testRunner = tool({
       return {
         title: '已写入测试报告',
         output: JSON.stringify({ action: 'write_report', status: 'ok', path: `test_reports/${sessionId}.json` }),
+      }
+    }
+
+    if (action === 'check_playwright') {
+      const npmResult = await runShellCommand('npx playwright --version', directory, 30000, MAX_BUFFER_UNIT)
+      if (npmResult.exit_code === 0) {
+        return {
+          title: 'Playwright 已安装 (npm)',
+          output: JSON.stringify({ installed: true, source: 'npm', version: npmResult.stdout.trim() }),
+        }
+      }
+
+      const pyResult = await runShellCommand('python -c "import playwright; print(getattr(playwright, \'__version__\', \'\'))"', directory, 30000, MAX_BUFFER_UNIT)
+      if (pyResult.exit_code === 0) {
+        return {
+          title: 'Playwright 已安装 (Python)',
+          output: JSON.stringify({ installed: true, source: 'python', version: pyResult.stdout.trim() || 'unknown' }),
+        }
+      }
+
+      return {
+        title: 'Playwright 未安装',
+        output: JSON.stringify({ installed: false }),
       }
     }
 
