@@ -263,6 +263,13 @@ export async function getAvailableLizhuSession(workspaceDir: string, client: Ope
   return null
 }
 
+export async function getAllUnboundLizhuSessions(workspaceDir: string): Promise<string[]> {
+  const map = await readLizhuMap(workspaceDir)
+  const boundSet = new Set(Object.values(map))
+  const sessions = await readLizhuSessions(workspaceDir)
+  return sessions.filter(sid => !boundSet.has(sid))
+}
+
 function lizhuSessionsPath(workspaceDir: string): string {
   return join(workspaceDir, 'lizhu_sessions.json')
 }

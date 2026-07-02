@@ -1,5 +1,6 @@
 import { tool } from '@opencode-ai/plugin'
 import type { ToolResult } from '@opencode-ai/plugin'
+import { join } from 'node:path'
 import { planReadMetadataSchema, planReadPlanSchema, planCompleteSchema, planDeleteSchema, planCreateReviewSchema, planSetTestPassedSchema } from '../lib/constants.ts'
 import { getAgentMode } from '../lib/session_state.ts'
 import {
@@ -16,8 +17,10 @@ import {
 import { readModuleDefinition } from '../lib/module_definition.ts'
 import { getPlanIdBySession, removeMappingByPlanId } from '../lib/session_plan_map.ts'
 import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
+import { getBoundLizhu, unbindLizhu } from '../lib/module_session_tracker.ts'
 import { limuPlanGuard } from '../lib/limu_plan_guard.ts'
 import { releasePlanFilesSession } from '../lib/plan_files.ts'
+import { exists } from '../lib/fs.ts'
 
 type AgentMode = ReturnType<typeof getAgentMode>
 
@@ -132,6 +135,24 @@ export const moduleAgentPlan = tool({
       }
       const planId = validate.data.plan_id
       const passed = validate.data.test_passed
+
+      // 检测离朱是否已解绑，未解绑则读取测试报告解绑
+      const lizhuSid = await getBoundLizhu(wsDir, context.sessionID)
+      if (lizhuSid) {
+        const reportPath = join(wsDir, 'test_reports', `${lizhuSid}.json`)
+        if (!(await exists(reportPath))) {
+          return {
+            title: '离朱测试未完成',
+            output: JSON.stringify({
+              status: 'error',
+              error: '离朱测试尚未完成。请等待离朱完成测试后，先调用 module_agent_reader(action="read_test_results") 读取测试报告。',
+              lizhu_session_id: lizhuSid,
+            }),
+          }
+        }
+        await unbindLizhu(wsDir, context.sessionID)
+      }
+
       const ok = await markTestPassed(wsDir, planId, passed)
       if (!ok) {
         return {

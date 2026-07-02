@@ -6,7 +6,7 @@ import { getAgentMode, setAgentMode } from '../lib/session_state.ts'
 import { validateConfirmationCode, CODE_CONSUMED_NOTICE } from './verification_code.ts'
 import { recordActivity, getLastActivity } from '../lib/limu_monitor.ts'
 import { isWorking } from '../lib/limu_monitor.ts'
-import { getModuleLimuSession, addModuleSession, markSessionChecked, clearSessionChecked, getBoundGaotao, bindGaotao, getBoundLizhu, bindLizhu, getAvailableLizhuSession, addLizhuSession } from '../lib/module_session_tracker.ts'
+import { getModuleLimuSession, addModuleSession, markSessionChecked, clearSessionChecked, getBoundGaotao, bindGaotao, getBoundLizhu, bindLizhu, getAvailableLizhuSession, getAllUnboundLizhuSessions, addLizhuSession } from '../lib/module_session_tracker.ts'
 import { findModule } from '../lib/module_tree.ts'
 import { readAgentProfile } from '../lib/agent_profile.ts'
 import { readCodeConventions } from '../lib/code_conventions.ts'
@@ -29,7 +29,7 @@ export function createModuleAgentExecutor(client: OpencodeClient) {
   return tool({
     description: '启动力牧会话或查询执行状态。用于分配开发计划给力牧并追踪执行结果。',
     args: {
-      action: tool.schema.enum(['start', 'status', 'ping', 'start_review', 'review_status', 'check_reviewer', 'start_lizhu']).describe('操作类型：start 启动执行，status 查询力牧状态，ping 二次检查提醒力牧写入执行总结，start_review 启动皋陶代码审查，review_status 查询皋陶审查结果，check_reviewer 检查皋陶是否空闲，start_lizhu 启动离朱测试'),
+      action: tool.schema.enum(['start', 'status', 'ping', 'start_review', 'review_status', 'check_reviewer', 'start_lizhu', 'list_unbound_lizhu']).describe('操作类型：start 启动执行，status 查询力牧状态，ping 二次检查提醒力牧写入执行总结，start_review 启动皋陶代码审查，review_status 查询皋陶审查结果，check_reviewer 检查皋陶是否空闲，start_lizhu 启动离朱测试，list_unbound_lizhu 获取当前工作空间中所有未绑定的离朱会话 ID'),
       module_name: tool.schema.string().optional().describe('模块唯一标识名称（action=start/status 时必填）'),
       development_plan: tool.schema.string().optional().describe('开发计划文本（action=start 时必填）'),
       plan_id: tool.schema.string().optional().describe('计划 ID，由风后通过 generate_id(id_type="plan") 生成（action=start 时必填）'),
@@ -43,7 +43,14 @@ export function createModuleAgentExecutor(client: OpencodeClient) {
       const action = args.action as string
       const lizhuActions = ['start_lizhu']
 
-      if (lizhuActions.includes(action)) {
+      if (action === 'list_unbound_lizhu') {
+        if (mode !== 'fengzhou') {
+          return {
+            title: '权限不足',
+            output: JSON.stringify({ status: 'error', error: 'module_agent_executor action="list_unbound_lizhu" 仅供风后调用。' }),
+          }
+        }
+      } else if (lizhuActions.includes(action)) {
         if (mode !== 'fengzhou' && mode !== 'limu') {
           return {
             title: '权限不足',
@@ -99,6 +106,14 @@ export function createModuleAgentExecutor(client: OpencodeClient) {
 
       if (action === 'start_lizhu') {
         return handleStartLizhu(client, directory, workspaceDir, boundWs, args, context.sessionID, mode)
+      }
+
+      if (action === 'list_unbound_lizhu') {
+        const sessions = await getAllUnboundLizhuSessions(workspaceDir)
+        return {
+          title: `共 ${sessions.length} 个未绑定的离朱`,
+          output: JSON.stringify({ unbound_lizhu_sessions: sessions }),
+        }
       }
 
       const validate = executorStatusSchema.passthrough().safeParse(args)
