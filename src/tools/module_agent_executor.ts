@@ -182,9 +182,9 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
     b. 调用 module_agent_executor(action="start_lizhu")
        —— 启动离朱测试智能体并绑定
 
-    c. 等待离朱完成测试。离朱完成后你会收到通知："离朱测试完毕，请读取测试结果"。
+    c. 启动离朱后，立即停止一切操作。不要主动查询离朱状态，不要调用 read_test_results 轮询。离朱完成测试后，系统会自动向你发送通知。
 
-    d. 收到通知后，调用 module_agent_reader(action="read_test_results")
+    d. 收到系统通知后，调用 module_agent_reader(action="read_test_results")
         —— 读取离朱测试报告（读取后会自动解除绑定）
 
     e. 根据测试结果决定：
@@ -544,13 +544,13 @@ async function handleStatus(
   const { completed, active } = await readAndCleanExecutionRecords(workspaceDir, module_name, session_id)
   const allRecords = [...completed, ...(active ? [active] : [])]
 
+  const lizhuSid = await getBoundLizhu(workspaceDir, session_id)
+  const lizhuWorking = lizhuSid ? isWorking(lizhuSid) : false
+
   if (allRecords.length > 0) {
     let isActive = !!active
-    if (!isActive) {
-      const lizhuSid = await getBoundLizhu(workspaceDir, session_id)
-      if (lizhuSid && isWorking(lizhuSid)) {
-        isActive = true
-      }
+    if (!isActive && lizhuWorking) {
+      isActive = true
     }
     if (!isActive) {
       await clearSessionChecked(workspaceDir, session_id)
@@ -562,6 +562,7 @@ async function handleStatus(
         finished: !isActive,
         records: allRecords,
         ...(active ? { status: active.status, current_work: active.summary } : isActive ? { status: 'running', current_work: '等待离朱测试完成' } : {}),
+        ...(lizhuSid ? { lizhu_session_id: lizhuSid, lizhu_working: lizhuWorking } : {}),
         last_activity: activity ?? null,
         idle_seconds: idleSeconds,
         unresponsive: isActive ? unresponsive : false,
@@ -592,7 +593,7 @@ async function handleStatus(
   if (!meta) {
     return {
       title: `模块 '${module_name}' 没有执行计划`,
-      output: JSON.stringify({ type: 'limu', finished: true, plan_id: null, message: `模块 '${module_name}' 没有执行计划。`, last_activity: activity ?? null, idle_seconds: idleSeconds, unresponsive: false }),
+      output: JSON.stringify({ type: 'limu', finished: true, plan_id: null, message: `模块 '${module_name}' 没有执行计划。`, ...(lizhuSid ? { lizhu_session_id: lizhuSid, lizhu_working: lizhuWorking } : {}), last_activity: activity ?? null, idle_seconds: idleSeconds, unresponsive: false }),
     }
   }
 
@@ -600,13 +601,13 @@ async function handleStatus(
     await clearSessionChecked(workspaceDir, session_id)
     return {
       title: `模块 '${module_name}' 执行完成`,
-      output: JSON.stringify({ type: 'limu', finished: true, plan_id: lastPlanId, plan_completed: true, last_activity: activity ?? null, idle_seconds: idleSeconds, unresponsive: false }),
+      output: JSON.stringify({ type: 'limu', finished: true, plan_id: lastPlanId, plan_completed: true, ...(lizhuSid ? { lizhu_session_id: lizhuSid, lizhu_working: lizhuWorking } : {}), last_activity: activity ?? null, idle_seconds: idleSeconds, unresponsive: false }),
     }
   }
 
   return {
     title: `模块 '${module_name}' 执行中`,
-    output: JSON.stringify({ type: 'limu', finished: false, plan_id: lastPlanId, plan_completed: false, message: '力牧正在执行，暂无执行结果记录。', last_activity: activity ?? null, idle_seconds: idleSeconds, unresponsive }),
+    output: JSON.stringify({ type: 'limu', finished: false, plan_id: lastPlanId, plan_completed: false, message: '力牧正在执行，暂无执行结果记录。', ...(lizhuSid ? { lizhu_session_id: lizhuSid, lizhu_working: lizhuWorking } : {}), last_activity: activity ?? null, idle_seconds: idleSeconds, unresponsive }),
   }
 }
 
@@ -717,6 +718,20 @@ async function handlePing(
     return {
       title: '已提醒皋陶',
       output: JSON.stringify({ status: 'ok', message: `已向皋陶会话 ${sessionId} 发送提醒。` }),
+    }
+  }
+
+  if (targetMode === 'lizhu') {
+    await client.session.promptAsync({
+      path: { id: sessionId },
+      body: {
+        parts: [{ type: 'text', text: '风后提醒：请尽快完成测试并通过 module_agent_testing(action="write_report", content="...") 生成测试报告。' }],
+      },
+    })
+    recordActivity(sessionId)
+    return {
+      title: '已提醒离朱',
+      output: JSON.stringify({ status: 'ok', message: `已向离朱会话 ${sessionId} 发送提醒。` }),
     }
   }
 

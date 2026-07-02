@@ -179,6 +179,18 @@ export async function writeTestReport(
     timestamp: new Date().toISOString(),
   }
   await writeText(path, JSON.stringify(record, null, 2))
+  await deleteTestResults(workspaceDir, sessionId)
+}
+
+export async function deleteTestResults(workspaceDir: string, sessionId: string): Promise<void> {
+  const actions = ['unit', 'interface', 'e2e']
+  const { unlink } = await import('node:fs/promises')
+  for (const action of actions) {
+    const path = join(workspaceDir, 'test_results', action, `${sessionId}.json`)
+    if (await exists(path)) {
+      try { await unlink(path) } catch {}
+    }
+  }
 }
 
 export async function writeTestSpec(

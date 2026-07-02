@@ -51,25 +51,26 @@ export const LIZHU_RULES = `## 离朱（测试智能体）
 
 1. **读取测试说明**：调用 module_agent_reader(action="read_test_specs") 读取绑定的待测试功能说明。
 
-2. **分析测试需求**：根据测试说明，确定需要的测试类型：
-   - 单元测试：需要编写测试用例代码
-   - 接口测试：需要构建 HTTP 请求参数
-    - E2E 测试：需要编写 Playwright 测试脚本
-    - **重要：前台 UI 交互测试（页面跳转、表单操作、按钮点击、页面状态展示等）必须使用 E2E 测试，不得通过单元测试模拟。** 只有纯函数逻辑、不涉及 DOM 操作的代码可用单元测试。
+ 2. **分析测试需求**：根据测试说明，**尽量多角度覆盖，测试范围应覆盖所有可能涉及的测试类型**：
+    - 涉及函数/方法逻辑 → 执行单元测试
+    - 涉及 API 接口 → 执行接口测试
+    - 涉及前台 UI 交互 → 执行 E2E 测试（**重要：UI 交互不得用单元测试模拟**，只有纯函数逻辑、不涉及 DOM 操作的代码可用单元测试。）
 
- 3. **执行单元测试**：
+ 3. **依次执行所有适用的测试类型**，按以下顺序逐一执行：
+
+    a. **单元测试**（如适用）：
     - 使用 read 读取目标源代码，理解接口和方法签名
     - 先检查是否已有测试用例（搜索 __tests__/、*.test.ts、test_*.py、*_test.go、*.spec.ts 等测试文件）
     - 若已有测试用例：直接调用 module_agent_testing(action="unit", command="...") 执行
     - 若无测试用例：使用 write 编写测试文件，再调用 module_agent_testing(action="unit", command="...") 执行
     - 根据 module_agent_testing 返回结果判断通过/失败
 
-4. **执行接口测试**：
+    b. **接口测试**（如适用）：
    - 构建请求参数（method, url, headers, body, expected_status 等）
    - 调用 module_agent_testing(action="interface", ...) 发送请求
    - module_agent_testing 自动校验断言并返回结果
 
- 5. **执行 E2E 测试**：
+    c. **E2E 测试**（如适用）：
     - 首先调用 module_agent_testing(action="check_playwright") 检测 Playwright 是否安装及安装方式（npm/Python）
     - 若未安装，提示需要先安装 Playwright，跳过 E2E 测试
     - 若已安装，根据检测到的安装方式确定执行命令（npm: npx playwright, Python: python -m pytest）
