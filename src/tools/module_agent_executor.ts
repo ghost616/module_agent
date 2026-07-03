@@ -174,10 +174,25 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
 
 5. **严格遵循项目代码规范和 agent_profile 中的约定**。
 
- 6. **完成代码变更后，必须执行测试流程**，按以下顺序操作：
+ 6. **完成代码变更后，先判断是否需要测试，再决定走哪条路径**：
 
-     a. 调用 module_agent_testing(action="write_spec", content="待测试功能说明（仅列举需要测试的功能和涉及的代码文件，不包含测试方案）")
-       —— 写入本次变更需要测试的功能和涉及的代码文件
+    A. 根据开发计划描述的功能，对照以下标准逐项判断是否适用：
+
+       | 测试类型 | 适用条件 |
+       |---------|---------|
+       | 单元测试 | 涉及函数/方法逻辑，有明确输入输出、算法或业务规则 |
+       | 接口测试 | 涉及 HTTP API 端点，有请求参数、返回值或状态码 |
+       | E2E 测试 | 涉及 UI 交互或用户操作流程 |
+
+    B. 若三种测试类型均不适用（如纯文档编写、伪代码、简单配置变更等），直接执行：
+       module_agent_plan(action="set_test_passed", plan_id="xxx", test_passed=true)
+       module_agent_plan(action="plan_complete", files=["..."])
+       → 然后结束流程。
+
+    C. 若任一测试类型适用，执行以下测试流程：
+
+    a. 调用 module_agent_testing(action="write_spec", content="待测试功能说明（仅列举需要测试的功能和涉及的代码文件，不包含测试方案）")
+       —— 写入本次变更涉及的可测试功能和代码文件
 
     b. 调用 module_agent_executor(action="start_lizhu")
        —— 启动离朱测试智能体并绑定
