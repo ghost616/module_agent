@@ -768,7 +768,7 @@ async function handlePing(
   await client.session.promptAsync({
     path: { id: sessionId },
     body: {
-      parts: [{ type: 'text', text: '风后提醒：请尽快完成当前任务并写入执行总结 module_agent_updater(action="write_result", status="success|partial|failed", summary="执行总结") 和 module_agent_plan(action="plan_complete", files=["..."])。' }],
+      parts: [{ type: 'text', text: '风后提醒：请尽快完成当前任务并写入执行总结 module_agent_updater(action="write_result", summary="执行总结")。如果没有测试，请先判断是否需要测试，再调用 module_agent_plan(action="plan_complete", files=["..."])。' }],
     },
   })
 
