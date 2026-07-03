@@ -1,6 +1,6 @@
 # OpenCode Module Agent Plugin
 
-使用 OpenCode + DeepSeek 开发的多模块协同开发插件，提供岐伯（项目设置）、隶首（代码自归类与模块补全）、风后（计划编排）、力牧（计划执行）、皋陶（代码审查）五级 Agent 协作框架。
+使用 OpenCode + DeepSeek 开发的多模块协同开发插件，提供岐伯（项目设置）、隶首（代码自归类与模块补全）、风后（计划编排）、力牧（计划执行）、皋陶（代码审查）、离朱（测试执行）六级 Agent 协作框架。
 
 ## 安装
 
@@ -67,8 +67,20 @@
 │ · module_agent│    │ · 仅调       │
 │   工具需 guard │    │   module_ag- │
 │   检测        │    │   ent_plan + │
-│              │    │   updater     │
-└──────────────┘    └──────────────┘
+│ · 可启动离朱  │    │   updater     │
+└──────┬───────┘    └──────────────┘
+       │ 启动
+       ▼
+┌──────────────────────────────────────┐
+│           离朱 (lizhu)                │
+│           测试执行智能体               │
+│  读取测试说明 → 编写/执行测试            │
+│  → 输出测试报告                       │
+│                                      │
+│  支持：单元测试 / 接口测试 / E2E 测试    │
+│  限制：仅调 module_agent_testing +      │
+│        read + write/edit（测试文件）     │
+└──────────────────────────────────────┘
 ```
 
 ## 运行限制
@@ -80,8 +92,9 @@
 | 风后 | **throw 阻断** | 允许 | 允许 | 允许（编排调度用） |
 | 力牧 | 需 `checkLimuPlanActive` 通过 | 需计划检测通过 | 需计划检测通过 | 需 `limuPlanGuard` 通过 |
 | 皋陶 | **throw 阻断** | 允许 | 允许 | 仅限 `module_agent_plan` + `module_agent_updater` |
+| 离朱 | 允许（仅限测试文件） | 允许 | 允许 | 仅限 `module_agent_testing` + `module_agent_reader` |
 
-## 工具清单（19 个自定义工具）
+## 工具清单（22 个自定义工具）
 
 ### 编排调度
 
@@ -90,7 +103,7 @@
 | `module_agent_start` | 启动力牧编排模式，注入风后力牧规则 |
 | `module_agent_setup` | 启动岐伯项目设置向导 |
 | `module_agent_classifier` | 启动隶首代码归类模式 |
-| `module_agent_executor` | 启动力牧/皋陶会话，查询执行/审查状态 |
+| `module_agent_executor` | 启动力牧/皋陶/离朱会话，查询执行/审查/测试状态 |
 | `module_agent_done` | 关闭力牧或皋陶会话 |
 
 ### 模块管理
@@ -98,7 +111,7 @@
 | 工具 | 说明 |
 |---|---|
 | `module_agent_admin` | 创建/修改模块，列出候选目录，读取模块树 |
-| `module_agent_reader` | 读取模块元数据（spec/definition/history/dirs/plan_files） |
+| `module_agent_reader` | 读取模块元数据（spec/definition/history/dirs/plan_files/test_results/test_specs/lizhu_results） |
 | `module_design_admin` | 管理 `module_design.json` 模块设计条目 |
 | `module_classification` | 文件分类管理（隶首专用） |
 | `module_agent_explorer` | 目录浏览与递归扫描（隶首、风后） |
@@ -111,8 +124,8 @@
 
 | 工具 | 说明 |
 |---|---|
-| `module_agent_updater` | 增量更新模块元数据文件（spec/definition/history/result/plan_files/review） |
-| `module_agent_plan` | 开发计划生命周期管理（创建/完成/审查/清理/删除） |
+| `module_agent_updater` | 增量更新模块元数据文件（spec/definition/history/result/plan_files/review/check_active_plan） |
+| `module_agent_plan` | 开发计划生命周期管理（创建/完成/测试标记/审查/清理/删除） |
 | `module_agent_backup` | 文件备份（力牧修改前调用）与备份读取 |
 
 ### 辅助
@@ -121,6 +134,9 @@
 |---|---|
 | `verification_code` | 生成确认码（用于需要用户确认的操作） |
 | `generate_id` | 生成带类型前缀的 UUID（如 `plan_{uuid}`） |
+| `agent_model_list` | 获取当前配置的模型提供方和可用模型列表 |
+| `agent_model_config` | 管理力牧/皋陶/离朱的默认模型配置（仅风后可调用） |
+| `module_agent_testing` | 代码测试工具：单元测试 / 接口测试 / E2E 测试 / 写入测试说明 / 写入测试报告 |
 
 ## 工作流程
 
@@ -146,8 +162,9 @@
 3. **评估模块变更**：`module_agent_reader` + 直接读代码，生成开发计划
 4. **逐模块确认与执行**：`generate_id("plan")` → `module_agent_executor(action="start")` 启动力牧
 5. **进入统一轮询状态**：用户确认后风后轮询 `module_agent_executor(action="status")`
-6. **启动代码审查**：力牧完成后 → `module_agent_executor(action="start_review")` 启动皋陶
-7. **汇总报告**：收集所有执行结果和审查结果 → `module_agent_plan(action="clean_completed")` → `module_agent_done`
+6. **可选：启动离朱测试**：力牧完成代码变更后 → `module_agent_executor(action="start_lizhu")` 自动执行测试 → 离朱空闲时通知力牧读取 `module_agent_reader(action="read_test_results")`
+7. **启动代码审查**：力牧完成后 → `module_agent_executor(action="start_review")` 启动皋陶
+8. **汇总报告**：收集所有执行结果和审查结果 → `module_agent_plan(action="clean_completed")` → `module_agent_done`
 
 详细编排规则见 `src/lib/orchestrator_rules.ts`。
 
@@ -165,16 +182,20 @@
 │   ├── agent_profile.txt     # 智能体配置
 │   ├── current_spec.md       # 模块功能说明
 │   ├── change_history.log    # 变更历史
-│   ├── module_definition.json # 文件定义
+│   ├── module_definition.json  # 文件定义
 │   ├── plan_files.json       # 当前锁定的文件
 │   └── agent_backups/        # 文件备份
+├── module_sessions.json      # 模块会话映射
+├── agent_model_config.json   # Agent 模型配置
 ├── .workspaces/
 │   ├── index.json            # 工作空间索引
 │   └── <workspace>/
 │       ├── development_plan/ # 开发计划
 │       ├── executions/       # 力牧执行记录
 │       ├── session_plan_map.json  # 会话 → 计划映射
-│       └── review_result.json     # 审查结果
+│       ├── review_result.json     # 审查结果
+│       ├── test_specs/       # 测试说明
+│       └── lizhu_results/    # 离朱测试结果
 ```
 
 ## 项目结构
@@ -183,11 +204,16 @@
 src/
 ├── index.ts              # 插件入口，hooks 注册
 ├── lib/                  # 核心逻辑库
+│   ├── types.ts          # 类型定义
+│   ├── constants.ts      # 常量与 schema 定义
+│   ├── fs.ts             # 文件系统工具
 │   ├── session_state.ts  # 会话模式状态管理
 │   ├── limu_plan_guard.ts # 力牧计划检测守卫
+│   ├── limu_monitor.ts   # 力牧活跃检测
 │   ├── classifier_rules.ts # 隶首归类规则
 │   ├── orchestrator_rules.ts # 风后编排规则
 │   ├── reviewer_rules.ts # 皋陶审查规则
+│   ├── lizhu_rules.ts    # 离朱测试规则
 │   ├── setup_guide.ts    # 岐伯设置向导规则
 │   ├── development_plan.ts # 开发计划管理
 │   ├── plan_files.ts     # 文件锁管理
@@ -197,12 +223,18 @@ src/
 │   ├── module_tree.ts    # 模块树管理
 │   ├── module_definition.ts # 模块文件定义
 │   ├── module_spec.ts    # 模块功能说明
+│   ├── module_design.ts  # 模块设计管理
 │   ├── agent_profile.ts  # 智能体配置
+│   ├── agent_model_config.ts # Agent 模型配置
+│   ├── module_session_tracker.ts # 模块会话追踪与绑定
 │   ├── file_backup.ts    # 文件备份
 │   ├── workspace.ts      # 工作空间管理
 │   ├── session_workspace.ts # 会话 → 工作空间
+│   ├── code_conventions.ts # 代码规范
+│   ├── stale_cleanup.ts  # 失效数据清理
+│   ├── testing.ts        # 测试执行工具
 │   └── ...
-└── tools/                # 18 个自定义工具实现
+└── tools/                # 21 个自定义工具实现
     ├── module_agent_admin.ts
     ├── module_agent_executor.ts
     ├── module_agent_updater.ts
@@ -218,6 +250,10 @@ src/
     ├── module_agent_analyzer.ts
     ├── module_agent_line_reader.ts
     ├── module_design_admin.ts
+    ├── module_agent_cleanup.ts
+    ├── agent_model_config.ts
+    ├── agent_model_list.ts
+    ├── testing.ts
     ├── verification_code.ts
     ├── workspace.ts
     └── ...
