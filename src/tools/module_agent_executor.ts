@@ -142,14 +142,14 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
 
 2. **跟踪执行进度 — 每次调用 write / edit 工具后必须执行以下步骤**：
    - 开始执行时立即写入执行状态和计划修改的文件列表：
-     a. module_agent_updater(action="write_result", status="started", summary="xx任务已启动")
+     a. module_agent_updater(action="write_result", summary="xx任务已启动")
      b. module_agent_updater(action="add_plan_files", files=["src/auth/login.ts", ...], status="started")
    - 每次调用 write / edit 工具后更新执行状态：
-     module_agent_updater(action="write_result", status="running", summary="更新了 xxx 文件")
+     module_agent_updater(action="write_result", summary="更新了 xxx 文件")
    - 每次完成文件修改后释放对应文件锁：
      module_agent_updater(action="remove_plan_files", files=["src/auth/login.ts"])
    - 最终完成全部任务后写入执行总结：
-     module_agent_updater(action="write_result", status="success|partial|failed", summary="执行总结")
+     module_agent_updater(action="write_result", summary="执行总结")
 
 3. **执行开发计划**：根据用户消息中的开发计划，进行代码编写、文件修改等操作。每次文件操作后必须先执行步骤 2 更新进度。
    - **重要：每次调用 write / edit 修改文件前，必须先调用 module_agent_updater(action="check_active_plan", module_name="${moduleName}") 检测计划有效性。若返回 status="error"，说明计划已失效（已完成或被清理），必须立即停止所有文件修改操作并报告。**
@@ -256,8 +256,8 @@ async function handleStart(
     recordActivity(reusable)
 
     await writeExecutionRecord(workspaceDir, module_name, reusable, {
+      plan_id,
       plan: development_plan,
-      status: 'started',
       modified_files: [],
       summary: '力牧已接收新计划',
       errors: [],
@@ -369,8 +369,8 @@ async function handleStart(
   recordActivity(sessionId)
 
   await writeExecutionRecord(workspaceDir, module_name, sessionId, {
+    plan_id,
     plan: development_plan,
-    status: 'started',
     modified_files: [],
     summary: '力牧已启动',
     errors: [],
@@ -552,31 +552,46 @@ async function handleStatus(
     }
   }
 
-  const activity = getLastActivity(session_id)
-  const idleSeconds = activity ? Math.floor((Date.now() - activity) / 1000) : null
-  const unresponsive = idleSeconds !== null && idleSeconds > 300
+  let activity = getLastActivity(session_id)
+  let idleSeconds = activity ? Math.floor((Date.now() - activity) / 1000) : null
+  let unresponsive = idleSeconds !== null && idleSeconds > 300
 
-  const { completed, active } = await readAndCleanExecutionRecords(workspaceDir, module_name, session_id)
-  const allRecords = [...completed, ...(active ? [active] : [])]
+  const allRecords = await readAndCleanExecutionRecords(workspaceDir, module_name, session_id)
 
   const lizhuSid = await getBoundLizhu(workspaceDir, session_id)
   const lizhuWorking = lizhuSid ? isWorking(lizhuSid) : false
 
   if (allRecords.length > 0) {
-    let isActive = !!active
+    const planId = await getPlanIdBySession(workspaceDir, session_id)
+    let isActive = false
+    if (planId) {
+      const metadata = await readAllMetadata(workspaceDir)
+      const meta = metadata.find(m => m.plan_id === planId)
+      isActive = meta ? !meta.plan_completed : false
+    }
+    const limuActive = isActive
     if (!isActive && lizhuWorking) {
       isActive = true
+    }
+
+    // 力牧已停止但离朱仍在运行，使用离朱的活动时间计算空闲
+    if (!limuActive && lizhuWorking && lizhuSid) {
+      const lizhuActivity = getLastActivity(lizhuSid)
+      idleSeconds = lizhuActivity ? Math.floor((Date.now() - lizhuActivity) / 1000) : null
+      unresponsive = idleSeconds !== null && idleSeconds > 300
+      activity = lizhuActivity
     }
     if (!isActive) {
       await clearSessionChecked(workspaceDir, session_id)
     }
+    const lastRecord = allRecords[allRecords.length - 1]
     return {
       title: `模块 '${module_name}' 执行${isActive ? '中' : '完成'}`,
       output: JSON.stringify({
         type: 'limu',
         finished: !isActive,
         records: allRecords,
-        ...(active ? { status: active.status, current_work: active.summary } : isActive ? { status: 'running', current_work: '等待离朱测试完成' } : {}),
+        ...(isActive ? { current_work: lizhuWorking ? '等待离朱测试完成' : lastRecord.summary } : {}),
         ...(lizhuSid ? { lizhu_session_id: lizhuSid, lizhu_working: lizhuWorking } : {}),
         last_activity: activity ?? null,
         idle_seconds: idleSeconds,

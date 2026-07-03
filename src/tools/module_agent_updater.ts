@@ -205,9 +205,13 @@ async function handleAppendHistory(directory: string, args: any): Promise<ToolRe
 async function handleWriteResult(directory: string, workspaceDir: string, args: any): Promise<ToolResult> {
   const validate = updaterResultSchema.safeParse(args)
   if (!validate.success) return { title: '参数错误', output: JSON.stringify({ status: 'error', error: validate.error.message }) }
-  const { module_name, session_id, plan, status, modified_files, summary, errors } = validate.data
+  const { module_name, session_id, plan, modified_files, summary, errors } = validate.data
+  const plan_id = await getPlanIdBySession(workspaceDir, session_id)
+  if (!plan_id) {
+    return { title: '未找到对应计划', output: JSON.stringify({ status: 'error', error: `会话 ${session_id} 未绑定计划` }) }
+  }
   await ensureModule(directory, module_name)
-  await writeExecutionRecord(workspaceDir, module_name, session_id, { plan, status, modified_files, summary, errors })
+  await writeExecutionRecord(workspaceDir, module_name, session_id, { plan_id, plan, modified_files, summary, errors })
   return { title: '已写入执行记录', output: JSON.stringify({ action: 'write_result', status: 'ok' }) }
 }
 

@@ -9,7 +9,7 @@ import { clearActivity } from '../lib/limu_monitor.ts'
 import { deleteReviewResult, readReviewResult } from '../lib/review_result.ts'
 import { getPlanIdBySession, removeMapping } from '../lib/session_plan_map.ts'
 import { getBoundWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
-import { deletePlan } from '../lib/development_plan.ts'
+import { deletePlan, readAllMetadata } from '../lib/development_plan.ts'
 import { releasePlanFilesSession } from '../lib/plan_files.ts'
 import { getSessionWorkspace, removeSessionWorkspace } from '../lib/session_workspace.ts'
 
@@ -155,8 +155,15 @@ export function createModuleAgentDone(client: OpencodeClient) {
         }
       }
 
-      const { active } = await readAndCleanExecutionRecords(directory, moduleName, sessionId)
-      if (active) {
+      const allRecords = await readAndCleanExecutionRecords(wsDir, moduleName, sessionId)
+      const planId = await getPlanIdBySession(wsDir, sessionId)
+      let isActive = false
+      if (planId && allRecords.length > 0) {
+        const metadata = await readAllMetadata(wsDir)
+        const meta = metadata.find(m => m.plan_id === planId)
+        isActive = meta ? !meta.plan_completed : false
+      }
+      if (isActive) {
         const checked = await isSessionChecked(wsDir, sessionId)
         if (!checked) {
           return {
@@ -173,7 +180,6 @@ export function createModuleAgentDone(client: OpencodeClient) {
       await releasePlanFilesSession(directory, moduleName, sessionId)
       await clearSessionChecked(wsDir, sessionId)
       clearActivity(sessionId)
-      const planId = await getPlanIdBySession(wsDir, sessionId)
       if (planId) {
         await deletePlan(wsDir, planId)
       }

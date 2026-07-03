@@ -174,7 +174,6 @@ export const updaterResultSchema = z.object({
   module_name: z.string().describe('模块唯一标识'),
   session_id: z.string().describe('会话 ID'),
   plan: z.string().describe('开发计划摘要'),
-  status: z.enum(['started', 'running', 'success', 'partial', 'failed']).describe('执行状态'),
   modified_files: z.array(z.string()).describe('被修改的文件列表'),
   summary: z.string().describe('执行总结'),
   errors: z.array(z.string()).default([]).describe('错误信息列表'),

@@ -32,7 +32,7 @@ export async function writeExecutionRecord(
 
   if (records.length > 0) {
     const last = records[records.length - 1]
-    if (last.status === 'success' || last.status === 'partial' || last.status === 'failed') {
+    if (last.plan_id !== record.plan_id) {
       records.push(record)
     } else {
       records[records.length - 1] = record
@@ -48,34 +48,18 @@ export async function readAndCleanExecutionRecords(
   workspaceDir: string,
   moduleName: string,
   sessionId: string,
-): Promise<{ completed: ExecutionRecord[]; active: ExecutionRecord | null }> {
+): Promise<ExecutionRecord[]> {
   const path = resultPath(workspaceDir, moduleName, sessionId)
-  if (!(await exists(path))) return { completed: [], active: null }
+  if (!(await exists(path))) return []
 
   let records: ExecutionRecords
   try {
     records = await readJson<ExecutionRecords>(path)
   } catch {
-    return { completed: [], active: null }
+    return []
   }
 
-  const completed = records.filter(
-    (r) => r.status === 'success' || r.status === 'partial' || r.status === 'failed',
-  )
-  const activeRecords = records.filter(
-    (r) => r.status === 'started' || r.status === 'running',
-  )
-
-  if (activeRecords.length > 0) {
-    await writeText(path, JSON.stringify(activeRecords, null, 2))
-  } else {
-    await _deleteExecutionRecords(workspaceDir, moduleName, sessionId)
-  }
-
-  return {
-    completed,
-    active: activeRecords.length > 0 ? activeRecords[activeRecords.length - 1] : null,
-  }
+  return records
 }
 
 async function _deleteExecutionRecords(

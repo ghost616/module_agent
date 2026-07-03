@@ -35,8 +35,8 @@ export interface FileEntry {
 
 /** 力牧单次执行记录 */
 export interface ExecutionRecord {
+  plan_id: string
   plan: string
-  status: 'started' | 'running' | 'success' | 'partial' | 'failed'
   modified_files: string[]
   summary: string
   errors: string[]

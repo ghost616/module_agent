@@ -175,6 +175,13 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
       }
     },
 
+    'tool.execute.after': async (input, _output) => {
+      const mode = getAgentMode(ctx.directory, input.sessionID)
+      if (mode === 'limu' || mode === 'gaotao' || mode === 'lizhu') {
+        recordActivity(input.sessionID)
+      }
+    },
+
     'experimental.text.complete': async (input, _output) => {
       const sessionId = input.sessionID
       const mode = getAgentMode(ctx.directory, sessionId)
