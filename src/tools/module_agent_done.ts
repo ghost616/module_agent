@@ -15,10 +15,10 @@ import { getSessionWorkspace, removeSessionWorkspace } from '../lib/session_work
 
 export function createModuleAgentDone(client: OpencodeClient) {
   return tool({
-    description: '风后完成任务后调用，关闭力牧或皋陶会话窗口。关闭前检测力牧是否空闲或已二次检查。',
+    description: '风后完成任务后调用，关闭力牧、皋陶或离朱会话窗口。关闭前检测力牧是否空闲或已二次检查。',
     args: {
-      module_name: tool.schema.string().describe('模块唯一标识名称'),
-      session_id: tool.schema.string().describe('力牧或皋陶会话 ID'),
+      module_name: tool.schema.string().optional().describe('模块唯一标识名称（关闭离朱时无需传入）'),
+      session_id: tool.schema.string().describe('力牧、皋陶或离朱会话 ID'),
       confirmation_code: tool.schema.string().describe('确认码'),
     },
     async execute(args, context): Promise<ToolResult> {
@@ -124,7 +124,7 @@ export function createModuleAgentDone(client: OpencodeClient) {
 
         return {
           title: '离朱已关闭',
-          output: JSON.stringify({ status: 'ok', message: `模块 '${moduleName}' 的离朱会话 ${sessionId} 已关闭。`, notice: CODE_CONSUMED_NOTICE }),
+          output: JSON.stringify({ status: 'ok', message: `离朱会话 ${sessionId} 已关闭。`, notice: CODE_CONSUMED_NOTICE }),
         }
       }
 
