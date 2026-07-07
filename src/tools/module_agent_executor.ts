@@ -4,7 +4,7 @@ import type { OpencodeClient } from '@opencode-ai/sdk'
 import { executorStartSchema, executorStatusSchema } from '../lib/constants.ts'
 import { getAgentMode, setAgentMode } from '../lib/session_state.ts'
 import { validateConfirmationCode, CODE_CONSUMED_NOTICE } from './verification_code.ts'
-import { recordActivity, getLastActivity } from '../lib/limu_monitor.ts'
+import { recordActivity, getSessionIdle } from '../lib/limu_monitor.ts'
 import { isWorking } from '../lib/limu_monitor.ts'
 import { getModuleLimuSession, addModuleSession, markSessionChecked, clearSessionChecked, getBoundGaotao, bindGaotao, getBoundLizhu, bindLizhu, getAvailableLizhuSession, getAllUnboundLizhuSessions, addLizhuSession } from '../lib/module_session_tracker.ts'
 import { findModule } from '../lib/module_tree.ts'
@@ -552,9 +552,10 @@ async function handleStatus(
     }
   }
 
-  let activity = getLastActivity(session_id)
-  let idleSeconds = activity ? Math.floor((Date.now() - activity) / 1000) : null
-  let unresponsive = idleSeconds !== null && idleSeconds > 300
+  const mainIdle = getSessionIdle(session_id)
+  let activity: number | null | undefined = mainIdle.lastActivity
+  let idleSeconds: number | null = mainIdle.idleSeconds
+  let unresponsive = mainIdle.unresponsive
 
   const allRecords = await readAndCleanExecutionRecords(workspaceDir, module_name, session_id)
 
@@ -576,10 +577,10 @@ async function handleStatus(
 
     // 力牧已停止但离朱仍在运行，使用离朱的活动时间计算空闲
     if (!limuActive && lizhuWorking && lizhuSid) {
-      const lizhuActivity = getLastActivity(lizhuSid)
-      idleSeconds = lizhuActivity ? Math.floor((Date.now() - lizhuActivity) / 1000) : null
-      unresponsive = idleSeconds !== null && idleSeconds > 300
-      activity = lizhuActivity
+      const lizhuIdle = getSessionIdle(lizhuSid)
+      idleSeconds = lizhuIdle.idleSeconds
+      unresponsive = lizhuIdle.unresponsive
+      activity = lizhuIdle.lastActivity
     }
     if (!isActive) {
       await clearSessionChecked(workspaceDir, session_id)
@@ -655,10 +656,9 @@ async function handleGaotaoStatus(
     }
   }
 
-  const activity = getLastActivity(gaotaoSid)
-  if (activity) {
-    const idleSeconds = Math.floor((Date.now() - activity) / 1000)
-    if (idleSeconds <= 300) {
+  const idleInfo = getSessionIdle(gaotaoSid)
+  if (idleInfo.lastActivity) {
+    if (!idleInfo.unresponsive) {
       return {
         title: '皋陶忙碌',
         output: JSON.stringify({ finished: false, unresponsive: false, message: '皋陶正在审查中' }),
@@ -699,8 +699,8 @@ async function handleCheckReviewer(
     }
   }
 
-  const activity = getLastActivity(gaotaoSid)
-  if (activity && Math.floor((Date.now() - activity) / 1000) <= 300) {
+  const idleInfo = getSessionIdle(gaotaoSid)
+  if (idleInfo.lastActivity && !idleInfo.unresponsive) {
     return {
       title: '皋陶忙碌',
       output: JSON.stringify({ bound: true, idle: false, message: '皋陶正在审查中' }),
@@ -734,6 +734,34 @@ async function handlePing(
   }
 
   const targetMode = getAgentMode(directory, sessionId)
+
+  const idleInfo = getSessionIdle(sessionId)
+  if (!idleInfo.unresponsive) {
+    return {
+      title: '会话未超时',
+      output: JSON.stringify({
+        status: 'ok',
+        message: `会话 ${sessionId} 未超时（空闲 ${idleInfo.idleSeconds} 秒），无需 ping。`,
+      }),
+    }
+  }
+
+  if (targetMode === 'limu') {
+    const lizhuSid = await getBoundLizhu(workspaceDir, sessionId)
+    if (lizhuSid) {
+      const lizhuIdle = getSessionIdle(lizhuSid)
+      if (!lizhuIdle.unresponsive) {
+        return {
+          title: '离朱工作中',
+          output: JSON.stringify({
+            status: 'ok',
+            message: `力牧 ${sessionId} 绑定的离朱 ${lizhuSid} 仍在工作（空闲 ${lizhuIdle.idleSeconds} 秒），力牧可能在等待测试结果，无需 ping。`,
+            lizhu_session_id: lizhuSid,
+          }),
+        }
+      }
+    }
+  }
 
   if (targetMode === 'gaotao') {
     await client.session.promptAsync({
