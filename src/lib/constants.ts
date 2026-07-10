@@ -100,7 +100,7 @@ export const executorStartSchema = z.object({
   action: z.literal('start'),
   module_name: z.string().describe('模块唯一标识'),
   development_plan: z.string().describe('风后分配的计划文本'),
-  plan_id: z.string().describe('计划 ID，由风后通过 verification_code(id_type="plan") 生成'),
+  plan_id: z.string().describe('计划 ID，由 module_agent_plan(action="confirm_plan") 返回'),
   plan_summary: z.string().describe('计划简要说明'),
   title: z.string().optional().describe('会话标题（风后根据开发计划自动生成）'),
   code_conventions: z.string().optional().describe('风后传入的代码规范，若代码规范文件为空时必须传入，文件不为空则无需传入'),

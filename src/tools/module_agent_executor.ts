@@ -32,7 +32,7 @@ export function createModuleAgentExecutor(client: OpencodeClient) {
       action: tool.schema.enum(['start', 'status', 'ping', 'start_review', 'review_status', 'check_reviewer', 'start_lizhu', 'list_unbound_lizhu']).describe('操作类型：start 启动执行，status 查询力牧状态，ping 二次检查提醒力牧写入执行总结，start_review 启动皋陶代码审查，review_status 查询皋陶审查结果，check_reviewer 检查皋陶是否空闲，start_lizhu 启动离朱测试，list_unbound_lizhu 获取当前工作空间中所有未绑定的离朱会话 ID'),
       module_name: tool.schema.string().optional().describe('模块唯一标识名称（action=start/status 时必填）'),
       development_plan: tool.schema.string().optional().describe('开发计划文本（action=start 时必填）'),
-      plan_id: tool.schema.string().optional().describe('计划 ID，由风后通过 generate_id(id_type="plan") 生成（action=start 时必填）'),
+      plan_id: tool.schema.string().optional().describe('计划 ID，由 module_agent_plan(action="confirm_plan") 返回（action=start 时必填）'),
       plan_summary: tool.schema.string().optional().describe('计划简要说明（action=start 时必填）'),
       session_id: tool.schema.string().optional().describe('会话 ID（action=status 时必填）'),
       code_conventions: tool.schema.string().optional().describe('风后传入的代码规范，若代码规范文件为空时必须传入，文件不为空则无需传入'),
@@ -180,13 +180,14 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
 
     A. 根据开发计划描述的功能，对照以下标准逐项判断是否适用：
 
-       | 测试类型 | 适用条件 |
-       |---------|---------|
-       | 单元测试 | 涉及函数/方法逻辑，有明确输入输出、算法或业务规则 |
-       | 接口测试 | 涉及 HTTP API 端点，有请求参数、返回值或状态码 |
-       | E2E 测试 | 涉及 UI 交互或用户操作流程 |
+        | 测试类型 | 适用条件 |
+        |---------|---------|
+        | 单元测试 | 涉及函数/方法的具体代码实现（非空函数体/占位符）、算法或业务规则。补充：仅添加空函数签名/接口声明/占位符不在此列；对已有空函数填充具体实现视为需编写测试 |
+        | 接口测试 | 涉及 HTTP API 端点或其关联业务功能的代码变更（有请求参数、返回值或状态码） |
+        | E2E 测试 | 涉及页面样式或页面操作逻辑的代码变更 |
 
-    B. 若三种测试类型均不适用（如纯文档编写、伪代码、简单配置变更等），直接执行：
+
+    B. 若三种测试类型均不适用（如纯文档编写、占位符、简单配置变更等），直接执行：
        module_agent_plan(action="set_test_passed", plan_id="xxx", test_passed=true)
        module_agent_plan(action="plan_complete", files=["..."])
        → 然后结束流程。

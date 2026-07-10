@@ -8,7 +8,7 @@ import { createModuleAgentStart } from './tools/module_agent_start.ts'
 import { createModuleAgentSetup } from './tools/module_agent_setup.ts'
 import { createModuleAgentDone } from './tools/module_agent_done.ts'
 import { moduleDesignAdmin } from './tools/module_design_admin.ts'
-import { verificationCode, generateIdTool } from './tools/verification_code.ts'
+import { verificationCode } from './tools/verification_code.ts'
 import { moduleAgentBackup } from './tools/module_agent_backup.ts'
 import { moduleAgentPlan } from './tools/module_agent_plan.ts'
 import { workspaceTool } from './tools/workspace.ts'
@@ -58,7 +58,6 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
       module_agent_done: moduleAgentDone,
       module_design_admin: moduleDesignAdmin,
       verification_code: verificationCode,
-      generate_id: generateIdTool,
       module_agent_backup: moduleAgentBackup,
       module_agent_plan: moduleAgentPlan,
       workspace: workspaceTool,
@@ -81,7 +80,7 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
       const customTools = [
         'module_agent_admin', 'module_agent_executor', 'module_agent_updater',
         'module_agent_reader', 'module_agent_start', 'module_agent_setup',
-        'module_agent_done', 'module_design_admin', 'verification_code', 'generate_id',
+        'module_agent_done', 'module_design_admin', 'verification_code',
         'module_agent_backup', 'module_agent_plan', 'workspace',
         'module_agent_explorer', 'module_agent_classifier',
         'module_agent_analyzer',
