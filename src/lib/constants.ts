@@ -357,6 +357,11 @@ export const planCreateReviewSchema = z.object({
   message: '至少传入 module_name 或 file_paths',
 })
 
+export const planConfirmPlanSchema = z.object({
+  action: z.literal('confirm_plan'),
+  confirmation_code: z.string().describe('用户确认的确认码'),
+})
+
 export const planArgsSchema = z.discriminatedUnion('action', [
   planReadMetadataSchema,
   planReadPlanSchema,
@@ -367,6 +372,7 @@ export const planArgsSchema = z.discriminatedUnion('action', [
   planGetPendingReviewSchema,
   planCleanCompletedSchema,
   planCreateReviewSchema,
+  planConfirmPlanSchema,
 ])
 
 // ============================================================

@@ -3,7 +3,7 @@ import type { ToolResult } from '@opencode-ai/plugin'
 import type { OpencodeClient } from '@opencode-ai/sdk'
 import { executorStartSchema, executorStatusSchema } from '../lib/constants.ts'
 import { getAgentMode, setAgentMode } from '../lib/session_state.ts'
-import { validateConfirmationCode, CODE_CONSUMED_NOTICE } from './verification_code.ts'
+import { validateConfirmationCode, CODE_CONSUMED_NOTICE, getPlanConfirmation, consumePlanConfirmation } from './verification_code.ts'
 import { recordActivity, getSessionIdle } from '../lib/limu_monitor.ts'
 import { isWorking } from '../lib/limu_monitor.ts'
 import { getModuleLimuSession, addModuleSession, markSessionChecked, clearSessionChecked, getBoundGaotao, bindGaotao, getBoundLizhu, bindLizhu, getAvailableLizhuSession, getAllUnboundLizhuSessions, addLizhuSession } from '../lib/module_session_tracker.ts'
@@ -36,7 +36,7 @@ export function createModuleAgentExecutor(client: OpencodeClient) {
       plan_summary: tool.schema.string().optional().describe('计划简要说明（action=start 时必填）'),
       session_id: tool.schema.string().optional().describe('会话 ID（action=status 时必填）'),
       code_conventions: tool.schema.string().optional().describe('风后传入的代码规范，若代码规范文件为空时必须传入，文件不为空则无需传入'),
-      confirmation_code: tool.schema.string().optional().describe('确认码（action=start/start_review 时必填）'),
+      confirmation_code: tool.schema.string().optional().describe('确认码（action=start_review 时必填）'),
     },
     async execute(args, context): Promise<ToolResult> {
       const mode = getAgentMode(context.directory, context.sessionID)
@@ -76,8 +76,10 @@ export function createModuleAgentExecutor(client: OpencodeClient) {
       const workspaceDir = getWorkspaceDir(directory, boundWs)
 
       if (action === 'start' || action === 'start_review') {
-        const error = validateConfirmationCode(args.confirmation_code, context.sessionID)
-        if (error) return error
+        if (action === 'start_review') {
+          const error = validateConfirmationCode(args.confirmation_code, context.sessionID)
+          if (error) return error
+        }
       }
 
       if (action === 'start') {
@@ -85,7 +87,7 @@ export function createModuleAgentExecutor(client: OpencodeClient) {
         if (!validate.success) {
           return { title: '参数错误', output: JSON.stringify({ status: 'error', error: validate.error.message }) }
         }
-        return handleStart(client, directory, workspaceDir, boundWs, validate.data)
+        return handleStart(client, directory, workspaceDir, boundWs, validate.data, context.sessionID)
       }
 
       if (action === 'ping') {
@@ -219,6 +221,7 @@ async function handleStart(
   workspaceDir: string,
   workspaceName: string,
   args: { module_name: string; development_plan: string; plan_id: string; plan_summary: string; code_conventions?: string },
+  sessionID: string,
 ): Promise<ToolResult> {
   const { module_name, development_plan, plan_id, plan_summary, code_conventions } = args
 
@@ -229,6 +232,22 @@ async function handleStart(
       output: JSON.stringify({ status: 'error', error: `模块 '${module_name}' 不存在，请先用 module_agent_admin 创建` }),
     }
   }
+
+  const planConfirmationCode = getPlanConfirmation(plan_id)
+  if (!planConfirmationCode) {
+    return {
+      title: '计划未确认',
+      output: JSON.stringify({ status: 'error', error: `计划 ${plan_id} 尚未通过 module_agent_plan(action="confirm_plan") 确认，请先确认计划后再启动力牧。` }),
+    }
+  }
+  const codeError = validateConfirmationCode(planConfirmationCode, sessionID)
+  if (codeError) {
+    return {
+      title: '确认码已过期',
+      output: JSON.stringify({ status: 'error', error: `确认码已过期，请重新通过 verification_code 生成确认码，用户确认后调用 module_agent_plan(action="confirm_plan", plan_id="${plan_id}") 重新确认计划，再启动力牧。当前 plan_id: ${plan_id}` }),
+    }
+  }
+  consumePlanConfirmation(plan_id)
 
   // 读取工作空间模型配置
   const modelConfig = await readAgentModelConfig(workspaceDir)

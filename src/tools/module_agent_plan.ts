@@ -1,7 +1,7 @@
 import { tool } from '@opencode-ai/plugin'
 import type { ToolResult } from '@opencode-ai/plugin'
 import { join } from 'node:path'
-import { planReadMetadataSchema, planReadPlanSchema, planCompleteSchema, planDeleteSchema, planCreateReviewSchema, planSetTestPassedSchema } from '../lib/constants.ts'
+import { planReadMetadataSchema, planReadPlanSchema, planCompleteSchema, planDeleteSchema, planCreateReviewSchema, planSetTestPassedSchema, planConfirmPlanSchema } from '../lib/constants.ts'
 import { getAgentMode } from '../lib/session_state.ts'
 import {
   readAllMetadata,
@@ -21,6 +21,7 @@ import { getBoundLizhu, unbindLizhu } from '../lib/module_session_tracker.ts'
 import { limuPlanGuard } from '../lib/limu_plan_guard.ts'
 import { releasePlanFilesSession } from '../lib/plan_files.ts'
 import { exists } from '../lib/fs.ts'
+import { checkConfirmationCode, storePlanConfirmation, generateId } from './verification_code.ts'
 
 type AgentMode = ReturnType<typeof getAgentMode>
 
@@ -35,6 +36,7 @@ function checkPermission(mode: AgentMode, action: string): ToolResult | null {
     get_pending_review: ['gaotao'],
     clean_completed: ['fengzhou'],
     create_review_plan: ['fengzhou'],
+    confirm_plan: ['fengzhou'],
   }
 
   const modes = allowed[action]
@@ -48,10 +50,11 @@ function checkPermission(mode: AgentMode, action: string): ToolResult | null {
 }
 
 export const moduleAgentPlan = tool({
-  description: '开发计划管理。读取计划元数据、读取计划详情、标记计划完成、获取待审查计划、标记审查完成、清理已完成计划、删除计划、创建审查计划。',
+  description: '开发计划管理。确认计划、读取计划元数据、读取计划详情、标记计划完成、获取待审查计划、标记审查完成、清理已完成计划、删除计划、创建审查计划。',
   args: {
-    action: tool.schema.enum(['read_metadata', 'read_plan', 'plan_complete', 'delete_plan', 'review_complete', 'get_pending_review', 'clean_completed', 'create_review_plan', 'set_test_passed']).describe('操作类型'),
-    plan_id: tool.schema.string().optional().describe('计划 ID（read_plan/delete_plan/review_complete/create_review_plan 时必填）'),
+    action: tool.schema.enum(['read_metadata', 'read_plan', 'plan_complete', 'delete_plan', 'review_complete', 'get_pending_review', 'clean_completed', 'create_review_plan', 'confirm_plan', 'set_test_passed']).describe('操作类型'),
+    confirmation_code: tool.schema.string().optional().describe('确认码（confirm_plan 时必填）'),
+    plan_id: tool.schema.string().optional().describe('计划 ID（confirm_plan/read_plan/delete_plan/review_complete/create_review_plan 时必填）'),
     files: tool.schema.array(tool.schema.string()).optional().describe('修改的文件路径列表（plan_complete 时必填）'),
     review_description: tool.schema.string().optional().describe('审查范围/目的描述（create_review_plan 时必填）'),
     module_name: tool.schema.string().optional().describe('要审查的模块名称，传入后自动解析该模块下所有文件（create_review_plan 时使用）'),
@@ -228,6 +231,29 @@ export const moduleAgentPlan = tool({
       return {
         title: `审查计划已创建`,
         output: JSON.stringify({ status: 'ok', plan_id, module_name: module_name || null, file_count: resolvedFiles.length, files: resolvedFiles }),
+      }
+    }
+
+    if (action === 'confirm_plan') {
+      const validate = planConfirmPlanSchema.safeParse(args)
+      if (!validate.success) {
+        return { title: '参数错误', output: JSON.stringify({ status: 'error', error: validate.error.message }) }
+      }
+      const { confirmation_code } = validate.data
+
+      if (!checkConfirmationCode(confirmation_code, context.sessionID)) {
+        return {
+          title: '确认码不匹配',
+          output: JSON.stringify({ status: 'error', error: '确认码不匹配或已过期，请重新通过 verification_code 工具获取确认码并让用户确认后再试。' }),
+        }
+      }
+
+      const planId = generateId('plan')
+      storePlanConfirmation(planId, confirmation_code)
+
+      return {
+        title: `计划已确认`,
+        output: JSON.stringify({ plan_id: planId }),
       }
     }
 

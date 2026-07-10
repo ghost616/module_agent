@@ -3,6 +3,7 @@ import type { ToolResult } from '@opencode-ai/plugin'
 import { randomUUID } from 'node:crypto'
 
 const latestCodes = new Map<string, string>()
+const planConfirmationMap = new Map<string, string>()
 
 export const CODE_CONSUMED_NOTICE = '确认码已作废，请重新生成'
 
@@ -16,6 +17,23 @@ export function getLatestCode(sessionId: string): string | undefined {
 
 export function clearLatestCode(sessionId: string): void {
   latestCodes.delete(sessionId)
+}
+
+export function storePlanConfirmation(planId: string, code: string): void {
+  planConfirmationMap.set(planId, code)
+}
+
+export function getPlanConfirmation(planId: string): string | undefined {
+  return planConfirmationMap.get(planId)
+}
+
+export function consumePlanConfirmation(planId: string): void {
+  planConfirmationMap.delete(planId)
+}
+
+export function checkConfirmationCode(code: string | undefined, sessionId: string): boolean {
+  const latest = latestCodes.get(sessionId)
+  return code !== undefined && latest !== undefined && code === latest
 }
 
 export function validateConfirmationCode(code: string | undefined, sessionId: string): ToolResult | null {
