@@ -94,7 +94,7 @@
 | 皋陶 | **throw 阻断** | 允许 | 允许 | 仅限 `module_agent_plan` + `module_agent_updater` |
 | 离朱 | 允许（仅限测试文件） | 允许 | 允许 | 仅限 `module_agent_testing` + `module_agent_reader` |
 
-## 工具清单（22 个自定义工具）
+## 工具清单（23 个自定义工具）
 
 ### 编排调度
 
@@ -104,7 +104,7 @@
 | `module_agent_setup` | 启动岐伯项目设置向导 |
 | `module_agent_classifier` | 启动隶首代码归类模式 |
 | `module_agent_executor` | 启动力牧/皋陶/离朱会话，查询执行/审查/测试状态 |
-| `module_agent_done` | 关闭力牧或皋陶会话 |
+| `module_agent_done` | 关闭力牧、皋陶或离朱会话 |
 
 ### 模块管理
 
@@ -124,16 +124,17 @@
 
 | 工具 | 说明 |
 |---|---|
-| `module_agent_updater` | 增量更新模块元数据文件（spec/definition/history/result/plan_files/review/check_active_plan） |
+| `module_agent_updater` | 增量更新模块元数据文件（update_spec / update_definition / move_definition / append_history） |
 | `module_agent_plan` | 开发计划生命周期管理（创建/完成/测试标记/审查/清理/删除） |
 | `module_agent_backup` | 文件备份（力牧修改前调用）与备份读取 |
+| `module_agent_updater_plan` | 力牧执行进度管理（write_result / add_plan_files / remove_plan_files / check_active_plan） |
+| `module_agent_updater_review` | 皋陶审查结果写入（write_review） |
 
 ### 辅助
 
 | 工具 | 说明 |
 |---|---|
 | `verification_code` | 生成确认码（用于需要用户确认的操作） |
-| `generate_id` | 生成带类型前缀的 UUID（如 `plan_{uuid}`） |
 | `agent_model_list` | 获取当前配置的模型提供方和可用模型列表 |
 | `agent_model_config` | 管理力牧/皋陶/离朱的默认模型配置（仅风后可调用） |
 | `module_agent_testing` | 代码测试工具：单元测试 / 接口测试 / E2E 测试 / 写入测试说明 / 写入测试报告 |
@@ -158,13 +159,34 @@
 ### 开发（风后力牧）
 
 1. **工作空间初始化**：`workspace(action="create"|"bind")`
-2. **模块树建立**：`module_agent_admin(action="read_modules"|"create")`
-3. **评估模块变更**：`module_agent_reader` + 直接读代码，生成开发计划
-4. **逐模块确认与执行**：`generate_id("plan")` → `module_agent_executor(action="start")` 启动力牧
-5. **进入统一轮询状态**：用户确认后风后轮询 `module_agent_executor(action="status")`
-6. **可选：启动离朱测试**：力牧完成代码变更后 → `module_agent_executor(action="start_lizhu")` 自动执行测试 → 离朱空闲时通知力牧读取 `module_agent_reader(action="read_test_results")`
-7. **启动代码审查**：力牧完成后 → `module_agent_executor(action="start_review")` 启动皋陶
-8. **汇总报告**：收集所有执行结果和审查结果 → `module_agent_plan(action="clean_completed")` → `module_agent_done`
+   - 新建后必须配置模型：`agent_model_list` 展示可用模型 → `agent_model_config(action="set", ...)` 设置力牧/皋陶/离朱默认模型
+   - 绑定后必须检测模型：`agent_model_config(action="get")` 检查是否已配置，未配置则引导用户设置
+2. **检查代码规范与模块设计**：`module_design_admin(action="read_code_conventions")` + `action="read"`
+   - 若不存在则提示启动岐伯（`module_agent_setup`）生成需求设计、代码规范、模块设计
+3. **模块树建立**：`module_agent_admin(action="read_modules"|"create")`
+   - 默认创建 `framework` 系统框架模块，管理所有模块共用的文件
+4. **评估模块变更**：`module_agent_reader` + 直接读代码，生成开发计划
+5. **逐模块确认与执行**（支持并行）：
+   a. 展示模块开发计划，通过 `verification_code` 生成确认码让用户确认
+   b. 检测文件锁：`module_agent_reader(action="read_plan_files")` 查询该模块当前锁定的文件
+   c. 用户确认后 → `module_agent_plan(action="confirm_plan", confirmation_code="...")` 获得 `plan_id`
+   d. `module_agent_executor(action="start", plan_id=..., ...)` 启动力牧
+   e. 全部模块启动后，生成确认码询问用户是否查询子任务状态
+6. **统一轮询**：用户确认后对所有力牧调用 `module_agent_executor(action="status")`
+   - 支持力牧会话重用：相同模块的力牧会话会复用，新计划注入已有会话
+   - 轮询中返回离朱绑定状态（`lizhu_session_id` / `lizhu_working`）
+7. **离朱测试**（两条路径）：
+   a. 力牧自动启动：完成代码 → `write_spec` → `start_lizhu` → 等待系统通知 → `read_test_results` → `set_test_passed` → `plan_complete`
+   b. 风后独立启动：编写测试说明 → `write_spec` → `start_lizhu`（用户手动获取报告）
+8. **启动代码审查**：
+   a. `check_reviewer` 检查皋陶状态（支持重用已有皋陶会话）
+   b. 生成确认码询问用户 → 用户确认后 `start_review`
+   c. 轮询 `review_status` 获取审查结果
+9. **汇总报告**：收集所有执行结果和审查结果 → `module_agent_plan(action="clean_completed")` → `module_agent_done`
+10. **Git 提交与推送**：
+   a. 检测 Git 是否安装（`git --version`），未安装则跳过
+   b. 生成确认码询问用户是否提交推送
+   c. 用户确认 → 执行 `git add` / `git commit` / `git push`
 
 详细编排规则见 `src/lib/orchestrator_rules.ts`。
 
@@ -234,7 +256,7 @@ src/
 │   ├── stale_cleanup.ts  # 失效数据清理
 │   ├── testing.ts        # 测试执行工具
 │   └── ...
-└── tools/                # 21 个自定义工具实现
+└── tools/                # 23 个自定义工具实现
     ├── module_agent_admin.ts
     ├── module_agent_executor.ts
     ├── module_agent_updater.ts
