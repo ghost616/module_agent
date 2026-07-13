@@ -144,17 +144,17 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
 
 2. **跟踪执行进度 — 每次调用 write / edit 工具后必须执行以下步骤**：
    - 开始执行时立即写入执行状态和计划修改的文件列表：
-     a. module_agent_updater(action="write_result", summary="xx任务已启动")
-     b. module_agent_updater(action="add_plan_files", files=["src/auth/login.ts", ...], status="started")
+      a. module_agent_updater_plan(action="write_result", summary="xx任务已启动")
+      b. module_agent_updater_plan(action="add_plan_files", files=["src/auth/login.ts", ...], status="started")
    - 每次调用 write / edit 工具后更新执行状态：
-     module_agent_updater(action="write_result", summary="更新了 xxx 文件")
+      module_agent_updater_plan(action="write_result", summary="更新了 xxx 文件")
    - 每次完成文件修改后释放对应文件锁：
-     module_agent_updater(action="remove_plan_files", files=["src/auth/login.ts"])
+      module_agent_updater_plan(action="remove_plan_files", files=["src/auth/login.ts"])
    - 最终完成全部任务后写入执行总结：
-     module_agent_updater(action="write_result", summary="执行总结")
+      module_agent_updater_plan(action="write_result", summary="执行总结")
 
 3. **执行开发计划**：根据用户消息中的开发计划，进行代码编写、文件修改等操作。每次文件操作后必须先执行步骤 2 更新进度。
-   - **重要：每次调用 write / edit 修改文件前，必须先调用 module_agent_updater(action="check_active_plan", module_name="${moduleName}") 检测计划有效性。若返回 status="error"，说明计划已失效（已完成或被清理），必须立即停止所有文件修改操作并报告。**
+    - **重要：每次调用 write / edit 修改文件前，必须先调用 module_agent_updater_plan(action="check_active_plan", module_name="${moduleName}") 检测计划有效性。若返回 status="error"，说明计划已失效（已完成或被清理），必须立即停止所有文件修改操作并报告。**
    - **重要：每次调用 write / edit 修改已有文件前，必须先调用 module_agent_backup(action="backup", module_name="${moduleName}", file_path="<相对路径>") 备份该文件。新建文件无需备份。**
 
 4. **完成代码变更或调用 write / edit 工具后，必须按顺序调用 module_agent_updater 工具记录结果**：
@@ -210,7 +210,7 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
 
        —— 若有测试失败：根据失败信息修复代码，然后回到步骤 a 重新写入测试说明并启动离朱，直到全部通过。
 
-    注意：不要直接使用 write/edit 工具修改 .module_agent/ 下的文件，必须通过 module_agent_updater / module_agent_plan 工具操作。
+     注意：不要直接使用 write/edit 工具修改 .module_agent/ 下的文件，必须通过 module_agent_updater / module_agent_updater_plan / module_agent_plan 工具操作。
 `
 
   return prompt
@@ -787,7 +787,7 @@ async function handlePing(
     await client.session.promptAsync({
       path: { id: sessionId },
       body: {
-        parts: [{ type: 'text', text: '风后提醒：请尽快完成审查并通过 module_agent_updater(action="write_review", review_summary="审查总结", review_issues=[...], review_approved=true|false) 写入审查结果，然后调用 module_agent_plan(action="review_complete", plan_id="xxx") 标记完成，再通过 module_agent_plan(action="get_pending_review") 获取下一个待审查计划。' }],
+        parts: [{ type: 'text', text: '风后提醒：请尽快完成审查并通过 module_agent_updater_review(action="write_review", plan_id="xxx", review_summary="审查总结", review_issues=[...], review_approved=true|false) 写入审查结果，然后调用 module_agent_plan(action="review_complete", plan_id="xxx") 标记完成，再通过 module_agent_plan(action="get_pending_review") 获取下一个待审查计划。' }],
       },
     })
 
@@ -816,7 +816,7 @@ async function handlePing(
   await client.session.promptAsync({
     path: { id: sessionId },
     body: {
-      parts: [{ type: 'text', text: '风后提醒：请尽快完成当前任务并写入执行总结 module_agent_updater(action="write_result", summary="执行总结")。如果没有测试，请先判断是否需要测试，再调用 module_agent_plan(action="plan_complete", files=["..."])。' }],
+      parts: [{ type: 'text', text: '风后提醒：请尽快完成当前任务并写入执行总结 module_agent_updater_plan(action="write_result", summary="执行总结")。如果没有测试，请先判断是否需要测试，再调用 module_agent_plan(action="plan_complete", files=["..."])。' }],
     },
   })
 

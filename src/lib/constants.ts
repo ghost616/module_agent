@@ -204,6 +204,9 @@ export const updaterArgsSchema = z.discriminatedUnion('action', [
   updaterDefinitionSchema,
   updaterHistorySchema,
   updaterMoveSchema,
+])
+
+export const updaterPlanArgsSchema = z.discriminatedUnion('action', [
   updaterResultSchema,
   updaterAddPlanFilesSchema,
   updaterRemovePlanFilesSchema,

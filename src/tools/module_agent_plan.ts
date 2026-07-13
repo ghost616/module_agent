@@ -54,7 +54,7 @@ export const moduleAgentPlan = tool({
   args: {
     action: tool.schema.enum(['read_metadata', 'read_plan', 'plan_complete', 'delete_plan', 'review_complete', 'get_pending_review', 'clean_completed', 'create_review_plan', 'confirm_plan', 'set_test_passed']).describe('操作类型'),
     confirmation_code: tool.schema.string().optional().describe('确认码（confirm_plan 时必填）'),
-    plan_id: tool.schema.string().optional().describe('计划 ID（confirm_plan/read_plan/delete_plan/review_complete/create_review_plan 时必填）'),
+    plan_id: tool.schema.string().optional().describe('计划 ID（仅供风后/皋陶使用，力牧无需关注。confirm_plan/read_plan/delete_plan/review_complete/create_review_plan 时必填）'),
     files: tool.schema.array(tool.schema.string()).optional().describe('修改的文件路径列表（plan_complete 时必填）'),
     review_description: tool.schema.string().optional().describe('审查范围/目的描述（create_review_plan 时必填）'),
     module_name: tool.schema.string().optional().describe('要审查的模块名称，传入后自动解析该模块下所有文件（create_review_plan 时使用）'),

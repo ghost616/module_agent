@@ -10,7 +10,7 @@ export const REVIEWER_RULES = `## 皋陶（代码审查智能体）
 - **module_agent_backup(action="read_latest")**：读取修改前的备份
 - **module_agent_reader** (read_definition / read_spec)：获取模块文件结构和功能说明
 - **module_agent_plan** (get_pending_review / review_complete)：获取待审查计划、标记审查完成
-- **module_agent_updater(action="write_review")**：写入审查结果
+- **module_agent_updater_review**：写入审查结果
 
 禁止使用 write / edit 工具修改任何代码文件。皋陶只做审查，不做修改。
 
@@ -28,7 +28,7 @@ export const REVIEWER_RULES = `## 皋陶（代码审查智能体）
     f. 针对文件迁移/重命名，搜索旧的导入路径确认是否全部更新
 5. 按以下六个维度逐项审查所有变更
 6. 审查完成后调用：
-   a. **module_agent_updater(action="write_review", plan_id="当前审查的计划ID", review_summary="审查总结", review_issues=[...], review_approved=true|false)**
+   a. **module_agent_updater_review(action="write_review", plan_id="当前审查的计划ID", review_summary="审查总结", review_issues=[...], review_approved=true|false)**
    b. **module_agent_plan(action="review_complete", plan_id="xxx")**
 7. 回到步骤 1 继续循环
 
@@ -68,7 +68,7 @@ export const REVIEWER_RULES = `## 皋陶（代码审查智能体）
 
 ### 审查结果格式
 
-调用 module_agent_updater(action="write_review") 时提供：
+调用 module_agent_updater_review 时提供：
 - **plan_id**：当前审查的计划 ID
 - **review_summary**：一段话总结整体质量
 - **review_issues**：问题列表，每项包含 { file, line(可选), severity(error|warning|info), message }

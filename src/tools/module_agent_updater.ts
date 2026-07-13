@@ -7,39 +7,25 @@ import {
   updaterDefinitionSchema,
   updaterHistorySchema,
   updaterMoveSchema,
-  updaterResultSchema,
-  updaterAddPlanFilesSchema,
-  updaterRemovePlanFilesSchema,
   moduleAgentDir,
   CHANGE_HISTORY_FILE,
 } from '../lib/constants.ts'
 import { findModule } from '../lib/module_tree.ts'
 import { updateSpecSection } from '../lib/module_spec.ts'
 import { modifyDefinition, readModuleDefinition, writeModuleDefinition } from '../lib/module_definition.ts'
-import { writeExecutionRecord } from '../lib/execution_result.ts'
 import { exists, readText, writeText } from '../lib/fs.ts'
-import { addPlanFiles, removePlanFiles } from '../lib/plan_files.ts'
-import { readReviewResult, writeReviewResult } from '../lib/review_result.ts'
-import type { PlanReview, ReviewIssue } from '../lib/review_result.ts'
-import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
-import { getPlanIdBySession } from '../lib/session_plan_map.ts'
-import { readPlan, readAllMetadata } from '../lib/development_plan.ts'
 import { limuPlanGuard } from '../lib/limu_plan_guard.ts'
 
 export const moduleAgentUpdater = tool({
   description: `
-增量更新模块元数据文件，用于力牧在完成代码变更后记录结果。
+增量更新模块元数据文件。
 支持操作：
 - update_spec： 增/改 current_spec.md 中指定 heading 下的内容
 - update_definition： 增/删/改 module_definition.json 中的文件条目
 - move_definition： 将文件定义从一个模块移动到另一个模块，并在双方追加日志
-- append_history： 向 change_history.log 追加变更记录
-- write_result： 写入 execution_results/<session_id>.json
-- add_plan_files： 力牧写入计划修改的文件列表
-- remove_plan_files： 力牧移除已修改完的文件
-- write_review： 皋陶写入审查结果`,
+- append_history： 向 change_history.log 追加变更记录`,
   args: {
-    action: tool.schema.enum(['update_spec', 'update_definition', 'move_definition', 'append_history', 'write_result', 'add_plan_files', 'remove_plan_files', 'write_review', 'check_active_plan']).describe('操作类型'),
+    action: tool.schema.enum(['update_spec', 'update_definition', 'move_definition', 'append_history']).describe('操作类型'),
     module_name: tool.schema.string().optional().describe('模块唯一标识名称'),
     heading: tool.schema.string().optional().describe('update_spec：要修改的二级标题名（不含 ## 前缀）'),
     content: tool.schema.string().optional().describe('update_spec：该 section 的新增内容'),
@@ -53,20 +39,7 @@ export const moduleAgentUpdater = tool({
     ).optional().describe('update_definition：按路径更新 description（会整体替换旧 description，须提供包含文件已有职责的完整累积说明，避免覆盖历史说明；本次计划变更请记入 append_history）'),
     target_module_name: tool.schema.string().optional().describe('move_definition：目标模块名称'),
     paths: tool.schema.array(tool.schema.string()).optional().describe('move_definition：要移动的文件路径列表'),
-    session_id: tool.schema.string().optional().describe('append_history / move_definition / write_result / add_plan_files / remove_plan_files：会话 ID（力牧调用时自动从上下文获取，无需传入）'),
     entry: tool.schema.string().optional().describe('append_history：变更描述'),
-    plan: tool.schema.string().optional().describe('write_result：开发计划摘要'),
-    status: tool.schema.enum(['started', 'running', 'success', 'partial', 'failed']).optional().describe('write_result/add_plan_files：执行状态'),
-    modified_files: tool.schema.array(tool.schema.string()).optional().describe('write_result：修改文件列表'),
-    summary: tool.schema.string().optional().describe('write_result：执行总结'),
-    errors: tool.schema.array(tool.schema.string()).optional().describe('write_result：错误信息列表'),
-    files: tool.schema.array(tool.schema.string()).optional().describe('add_plan_files/remove_plan_files：文件路径列表'),
-    review_summary: tool.schema.string().optional().describe('write_review：审查总结'),
-    review_issues: tool.schema.array(
-      tool.schema.object({ file: tool.schema.string(), line: tool.schema.number().optional(), severity: tool.schema.enum(['error', 'warning', 'info']), message: tool.schema.string() })
-    ).optional().describe('write_review：问题列表'),
-    review_approved: tool.schema.boolean().optional().describe('write_review：是否通过审查'),
-    plan_id: tool.schema.string().optional().describe('write_review：计划 ID'),
   },
   async execute(args, context): Promise<ToolResult> {
     const directory = context.directory
@@ -75,53 +48,39 @@ export const moduleAgentUpdater = tool({
 
     const fengzhouAllowed = ['update_definition', 'move_definition']
     const lishouAllowed = ['update_spec']
-    const gaotaoAllowed = ['write_review']
-    const limuExcluded = ['write_review']
 
-    if (mode === 'limu' && limuExcluded.includes(action)) {
+    if (mode === 'fengzhou' && !fengzhouAllowed.includes(action)) {
       return {
         title: '权限不足',
-        output: JSON.stringify({ status: 'error', error: `module_agent_updater action="${action}" 仅供皋陶调用。` }),
+        output: JSON.stringify({ status: 'error', error: `风后仅可使用 module_agent_updater 的 update_definition 和 move_definition 操作。` }),
       }
     }
-    if (mode !== 'limu' && !(mode === 'fengzhou' && fengzhouAllowed.includes(action)) && !(mode === 'lishou' && lishouAllowed.includes(action)) && !(mode === 'gaotao' && gaotaoAllowed.includes(action))) {
+    if (mode === 'lishou' && !lishouAllowed.includes(action)) {
+      return {
+        title: '权限不足',
+        output: JSON.stringify({ status: 'error', error: '隶首仅可使用 module_agent_updater 的 update_spec 操作。' }),
+      }
+    }
+    if (mode !== 'limu' && mode !== 'fengzhou' && mode !== 'lishou') {
       return {
         title: '权限不足',
         output: JSON.stringify({ status: 'error', error: `module_agent_updater action="${action}" 权限不足。` }),
       }
     }
 
-    if (mode === 'limu' || mode === 'gaotao') {
-      args.session_id = context.sessionID
+    if (mode === 'limu' || mode === 'fengzhou') {
+      ;(args as any).session_id = context.sessionID
     }
-
     if (mode === 'limu') {
       const guard = await limuPlanGuard(directory, context.sessionID)
       if (guard) return guard
     }
-
-    let resolvedWorkspace: string | null = null
-    if (action === 'write_result' || action === 'write_review' || action === 'check_active_plan') {
-      resolvedWorkspace = await resolveWorkspace(directory, context.sessionID)
-      if (!resolvedWorkspace) {
-        return {
-          title: '未绑定工作空间',
-          output: JSON.stringify({ status: 'error', error: '当前会话未关联工作空间' }),
-        }
-      }
-    }
-    const workspaceDir = resolvedWorkspace ? getWorkspaceDir(directory, resolvedWorkspace) : ''
 
     try {
       if (action === 'update_spec') return handleUpdateSpec(directory, args)
       if (action === 'update_definition') return handleUpdateDefinition(directory, args)
       if (action === 'move_definition') return handleMoveDefinition(directory, args)
       if (action === 'append_history') return handleAppendHistory(directory, args)
-      if (action === 'write_result') return handleWriteResult(directory, workspaceDir, args)
-      if (action === 'add_plan_files') return handleAddPlanFiles(directory, args)
-      if (action === 'remove_plan_files') return handleRemovePlanFiles(directory, args)
-      if (action === 'write_review') return handleWriteReview(workspaceDir, args, context.sessionID)
-      if (action === 'check_active_plan') return handleCheckActivePlan(workspaceDir, context.sessionID)
       return { title: '未知操作', output: JSON.stringify({ status: 'error', error: `未知 action: ${action}` }) }
     } catch (err) {
       return { title: '执行错误', output: JSON.stringify({ status: 'error', error: (err as Error).message }) }
@@ -200,101 +159,4 @@ async function handleAppendHistory(directory: string, args: any): Promise<ToolRe
   await ensureModule(directory, module_name)
   await doAppendHistory(directory, module_name, session_id, entry)
   return { title: `已追加 ${module_name} 变更记录`, output: JSON.stringify({ action: 'append_history', status: 'ok', entry }) }
-}
-
-async function handleWriteResult(directory: string, workspaceDir: string, args: any): Promise<ToolResult> {
-  const validate = updaterResultSchema.safeParse(args)
-  if (!validate.success) return { title: '参数错误', output: JSON.stringify({ status: 'error', error: validate.error.message }) }
-  const { module_name, session_id, plan, modified_files, summary, errors } = validate.data
-  const plan_id = await getPlanIdBySession(workspaceDir, session_id)
-  if (!plan_id) {
-    return { title: '未找到对应计划', output: JSON.stringify({ status: 'error', error: `会话 ${session_id} 未绑定计划` }) }
-  }
-  await ensureModule(directory, module_name)
-  await writeExecutionRecord(workspaceDir, module_name, session_id, { plan_id, plan, modified_files, summary, errors })
-  return { title: '已写入执行记录', output: JSON.stringify({ action: 'write_result', status: 'ok' }) }
-}
-
-async function handleAddPlanFiles(directory: string, args: any): Promise<ToolResult> {
-  const validate = updaterAddPlanFilesSchema.safeParse(args)
-  if (!validate.success) return { title: '参数错误', output: JSON.stringify({ status: 'error', error: validate.error.message }) }
-  const { module_name, session_id, files, status } = validate.data
-  await ensureModule(directory, module_name)
-  await addPlanFiles(directory, module_name, session_id, files, status)
-  return { title: `已写入 ${module_name} 文件修改计划`, output: JSON.stringify({ action: 'add_plan_files', status: 'ok', files_count: files.length }) }
-}
-
-async function handleRemovePlanFiles(directory: string, args: any): Promise<ToolResult> {
-  const validate = updaterRemovePlanFilesSchema.safeParse(args)
-  if (!validate.success) return { title: '参数错误', output: JSON.stringify({ status: 'error', error: validate.error.message }) }
-  const { module_name, session_id, files } = validate.data
-  await ensureModule(directory, module_name)
-  await removePlanFiles(directory, module_name, session_id, files)
-  return { title: `已移除 ${module_name} 文件修改计划`, output: JSON.stringify({ action: 'remove_plan_files', status: 'ok', removed: files.length }) }
-}
-
-async function handleWriteReview(workspaceDir: string, args: any, reviewerSessionId: string): Promise<ToolResult> {
-  const planId = args.plan_id as string
-  if (!planId) {
-    return { title: '参数错误', output: JSON.stringify({ status: 'error', error: 'write_review 需要 plan_id' }) }
-  }
-
-  const existing = await readReviewResult(workspaceDir, reviewerSessionId)
-  const planReviews: PlanReview[] = existing?.planReviews ?? []
-
-  const idx = planReviews.findIndex(p => p.plan_id === planId)
-  const review: PlanReview = {
-    plan_id: planId,
-    summary: (args.review_summary as string) || '',
-    issues: (args.review_issues as ReviewIssue[]) || [],
-    approved: args.review_approved !== undefined ? (args.review_approved as boolean) : false,
-  }
-
-  if (idx >= 0) {
-    planReviews[idx] = review
-  } else {
-    planReviews.push(review)
-  }
-
-  await writeReviewResult(workspaceDir, reviewerSessionId, {
-    reviewer_session_id: reviewerSessionId,
-    planReviews,
-  })
-
-  return {
-    title: '已写入审查结果',
-    output: JSON.stringify({ action: 'write_review', status: 'ok', plan_id: planId, approved: review.approved, issues_count: review.issues.length }),
-  }
-}
-
-async function handleCheckActivePlan(workspaceDir: string, sessionId: string): Promise<ToolResult> {
-  const planId = await getPlanIdBySession(workspaceDir, sessionId)
-  if (!planId) {
-    return {
-      title: '无活跃计划',
-      output: JSON.stringify({ status: 'error', error: '当前会话未关联任何开发计划，无法执行文件修改。' }),
-    }
-  }
-
-  const plan = await readPlan(workspaceDir, planId)
-  if (!plan) {
-    return {
-      title: '计划不存在',
-      output: JSON.stringify({ status: 'error', error: `计划 ${planId} 不存在。` }),
-    }
-  }
-
-  const metadata = await readAllMetadata(workspaceDir)
-  const meta = metadata.find(m => m.plan_id === planId)
-  if (meta?.plan_completed) {
-    return {
-      title: '计划已完成',
-      output: JSON.stringify({ status: 'error', error: `计划 ${planId} 已标记完成，无法继续修改文件。` }),
-    }
-  }
-
-  return {
-    title: '计划活跃',
-    output: JSON.stringify({ status: 'ok', plan_id: planId, module_name: plan.module_name, plan_completed: false }),
-  }
 }

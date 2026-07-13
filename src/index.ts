@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import { moduleAgentAdmin } from './tools/module_agent_admin.ts'
 import { createModuleAgentExecutor } from './tools/module_agent_executor.ts'
 import { moduleAgentUpdater } from './tools/module_agent_updater.ts'
+import { moduleAgentUpdaterPlan } from './tools/module_agent_updater_plan.ts'
+import { moduleAgentUpdaterReview } from './tools/module_agent_updater_review.ts'
 import { moduleAgentReader } from './tools/module_agent_reader.ts'
 import { createModuleAgentStart } from './tools/module_agent_start.ts'
 import { createModuleAgentSetup } from './tools/module_agent_setup.ts'
@@ -52,6 +54,8 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
       module_agent_admin: moduleAgentAdmin,
       module_agent_executor: moduleAgentExecutor,
       module_agent_updater: moduleAgentUpdater,
+      module_agent_updater_plan: moduleAgentUpdaterPlan,
+      module_agent_updater_review: moduleAgentUpdaterReview,
       module_agent_reader: moduleAgentReader,
       module_agent_start: moduleAgentStart,
       module_agent_setup: moduleAgentSetup,
@@ -78,7 +82,7 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
     'permission.ask': async (input, output) => {
       // 自动允许插件自定义工具的所有操作
       const customTools = [
-        'module_agent_admin', 'module_agent_executor', 'module_agent_updater',
+        'module_agent_admin', 'module_agent_executor',         'module_agent_updater', 'module_agent_updater_plan', 'module_agent_updater_review',
         'module_agent_reader', 'module_agent_start', 'module_agent_setup',
         'module_agent_done', 'module_design_admin', 'verification_code',
         'module_agent_backup', 'module_agent_plan', 'workspace',
