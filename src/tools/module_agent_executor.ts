@@ -693,8 +693,8 @@ async function handleGaotaoStatus(
   const result = await readReviewResult(workspaceDir, gaotaoSid)
   if (!result || result.planReviews.length === 0) {
     return {
-      title: '暂无审查结果',
-      output: JSON.stringify({ finished: false, message: '暂无审查结果' }),
+      title: '皋陶无响应',
+      output: JSON.stringify({ finished: false, message: '皋陶无响应，审查结果为空', unresponsive: true }),
     }
   }
 
@@ -724,6 +724,21 @@ async function handleCheckReviewer(
     return {
       title: '皋陶忙碌',
       output: JSON.stringify({ bound: true, idle: false, message: '皋陶正在审查中' }),
+    }
+  }
+
+  if (idleInfo.lastActivity) {
+    return {
+      title: '皋陶无响应',
+      output: JSON.stringify({ bound: true, idle: false, unresponsive: true, message: '皋陶空闲超过5分钟，无响应' }),
+    }
+  }
+
+  const result = await readReviewResult(workspaceDir, gaotaoSid)
+  if (!result || result.planReviews.length === 0) {
+    return {
+      title: '皋陶无响应',
+      output: JSON.stringify({ bound: true, idle: false, unresponsive: true, message: '皋陶无响应，审查结果为空' }),
     }
   }
 
