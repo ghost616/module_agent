@@ -181,11 +181,12 @@
    a. `check_reviewer` 检查皋陶状态（支持重用已有皋陶会话）
    b. 生成确认码询问用户 → 用户确认后 `start_review`
    c. 轮询 `review_status` 获取审查结果
-9. **汇总报告**：收集所有执行结果和审查结果 → `module_agent_plan(action="clean_completed")` → `module_agent_done`
+9. **汇总报告**：收集所有执行结果和审查结果
 10. **Git 提交与推送**：
-   a. 检测 Git 是否安装（`git --version`），未安装则跳过
-   b. 生成确认码询问用户是否提交推送
-   c. 用户确认 → 执行 `git add` / `git commit` / `git push`
+    a. 检测 Git 是否安装（`git --version`），未安装则跳过
+    b. 生成确认码询问用户是否提交推送
+    c. 用户确认 → 执行 `git add` / `git commit` / `git push`
+11. **关闭力牧和皋陶**：`module_agent_plan(action="clean_completed")` → `module_agent_done`
 
 详细编排规则见 `src/lib/orchestrator_rules.ts`。
 
