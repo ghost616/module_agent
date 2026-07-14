@@ -186,7 +186,7 @@
     a. 检测 Git 是否安装（`git --version`），未安装则跳过
     b. 生成确认码询问用户是否提交推送
     c. 用户确认 → 执行 `git add` / `git commit` / `git push`
-11. **关闭力牧和皋陶**：`module_agent_plan(action="clean_completed")` → `module_agent_done`
+11. **关闭力牧、皋陶和空闲的离朱**：`module_agent_plan(action="clean_completed")` → `module_agent_done`
 
 详细编排规则见 `src/lib/orchestrator_rules.ts`。
 
