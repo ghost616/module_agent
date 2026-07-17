@@ -168,7 +168,7 @@ async function handleReadLizhuResults(directory: string, sessionId: string): Pro
   }
 
   const results: Record<string, any[]> = {}
-  const actions = ['unit', 'interface', 'e2e']
+  const actions = ['unit', 'interface', 'e2e', 'compile']
   for (const action of actions) {
     const dir = join(wsDir, 'test_results', action)
     const path = join(dir, `${sessionId}.json`)

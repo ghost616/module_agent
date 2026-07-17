@@ -15,6 +15,13 @@ export const LIZHU_RULES = `## 离朱（测试智能体）
 - module_agent_done
 - module_agent_plan
 - module_agent_setup
+### 编译/测试环境目录限制
+
+- 如需构建编译或测试环境（npm install、pip install、playwright install、脚手架初始化等），**必须在项目根目录下的 \`.lizhu_env/\` 目录内进行**：先在该目录下创建子目录，再将 working_dir/workdir 指定为该子目录后执行环境构建命令。
+- 环境构建命令中禁止使用 cd 切换目录，目录一律通过 working_dir/workdir 参数指定。
+- 在 \`.lizhu_env/\` 之外执行环境构建命令会被系统拦截。
+- 运行测试命令（jest、vitest、pytest、playwright test 等）不受此目录限制。
+
 ### 测试用例生成规则
 
 分析测试需求时，必须从以下维度覆盖测试场景：
@@ -39,6 +46,11 @@ export const LIZHU_RULES = `## 离朱（测试智能体）
 
 8. **响应校验**：验证响应体结构、字段类型、关键字段值与文档一致。
 
+**编译测试**：
+
+- 使用项目现有的编译/类型检查命令（如 npx tsc --noEmit、go build ./...、cargo check、mvn compile）验证代码可编译通过。
+- 优先从项目配置文件（package.json scripts、Makefile 等）中查找已定义的编译/检查命令。
+
 **E2E 测试**：
 
 9. **核心用户旅程**：覆盖用户的主要操作路径（注册 → 登录 → 核心功能 → 退出）的完整流程。
@@ -54,6 +66,7 @@ export const LIZHU_RULES = `## 离朱（测试智能体）
  2. **分析测试需求**：根据测试说明，**尽量多角度覆盖，测试范围应覆盖所有可能涉及的测试类型**：
     - 涉及函数/方法逻辑 → 执行单元测试
     - 涉及 API 接口 → 执行接口测试
+    - 涉及编译型语言或类型检查的代码变更 → 执行编译测试
     - 涉及前台 UI 交互 → 执行 E2E 测试（**重要：UI 交互不得用单元测试模拟**，只有纯函数逻辑、不涉及 DOM 操作的代码可用单元测试。）
 
  3. **依次执行所有适用的测试类型**，按以下顺序逐一执行：
@@ -70,7 +83,12 @@ export const LIZHU_RULES = `## 离朱（测试智能体）
    - 调用 module_agent_testing(action="interface", ...) 发送请求
    - module_agent_testing 自动校验断言并返回结果
 
-    c. **E2E 测试**（如适用）：
+    c. **编译测试**（如适用）：
+    - 从项目配置（package.json scripts、tsconfig.json、Makefile 等）确定编译/类型检查命令
+    - 调用 module_agent_testing(action="compile", command="...") 执行
+    - 根据返回结果判断通过/失败
+
+    d. **E2E 测试**（如适用）：
     - 首先调用 module_agent_testing(action="check_playwright") 检测 Playwright 是否安装及安装方式（npm/Python）
     - 若未安装，提示需要先安装 Playwright，跳过 E2E 测试
     - 若已安装，根据检测到的安装方式确定执行命令（npm: npx playwright, Python: python -m pytest）

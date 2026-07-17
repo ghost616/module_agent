@@ -3,7 +3,7 @@ import type { ToolResult } from '@opencode-ai/plugin'
 import type { OpencodeClient } from '@opencode-ai/sdk'
 import { getAgentMode, clearAgentMode } from '../lib/session_state.ts'
 import { validateConfirmationCode, CODE_CONSUMED_NOTICE } from './verification_code.ts'
-import { removeModuleSession, isSessionChecked, clearSessionChecked, unbindGaotao, isGaotaoBoundToFengzhou, getBoundStarter, removeLizhuSession } from '../lib/module_session_tracker.ts'
+import { removeModuleSession, isSessionChecked, clearSessionChecked, unbindGaotao, isGaotaoBoundToFengzhou, getBoundStarter, removeLizhuSession, getLimuStarter } from '../lib/module_session_tracker.ts'
 import { deleteExecutionRecords, readAndCleanExecutionRecords } from '../lib/execution_result.ts'
 import { clearActivity } from '../lib/limu_monitor.ts'
 import { deleteReviewResult, readReviewResult } from '../lib/review_result.ts'
@@ -156,6 +156,13 @@ export function createModuleAgentDone(client: OpencodeClient) {
       }
 
       const allRecords = await readAndCleanExecutionRecords(wsDir, moduleName, sessionId)
+      const limuStarter = await getLimuStarter(wsDir, sessionId)
+      if (limuStarter && limuStarter !== context.sessionID) {
+        return {
+          title: '权限不足',
+          output: JSON.stringify({ status: 'error', error: '该力牧不是当前风后开启的，无法关闭。' }),
+        }
+      }
       const planId = await getPlanIdBySession(wsDir, sessionId)
       let isActive = false
       if (planId && allRecords.length > 0) {

@@ -6,7 +6,7 @@ import { getAgentMode, setAgentMode } from '../lib/session_state.ts'
 import { validateConfirmationCode, CODE_CONSUMED_NOTICE, getPlanConfirmation, consumePlanConfirmation } from './verification_code.ts'
 import { recordActivity, getSessionIdle } from '../lib/limu_monitor.ts'
 import { isWorking } from '../lib/limu_monitor.ts'
-import { getModuleLimuSession, addModuleSession, markSessionChecked, clearSessionChecked, getBoundGaotao, bindGaotao, getBoundLizhu, bindLizhu, getAvailableLizhuSession, getAllUnboundLizhuSessions, addLizhuSession } from '../lib/module_session_tracker.ts'
+import { getModuleLimuSession, addModuleSession, markSessionChecked, clearSessionChecked, getBoundGaotao, bindGaotao, getBoundLizhu, bindLizhu, getAvailableLizhuSession, getAllUnboundLizhuSessions, addLizhuSession, bindLimuStarter } from '../lib/module_session_tracker.ts'
 import { findModule } from '../lib/module_tree.ts'
 import { readAgentProfile } from '../lib/agent_profile.ts'
 import { readCodeConventions } from '../lib/code_conventions.ts'
@@ -176,6 +176,8 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
 
 5. **严格遵循项目代码规范和 agent_profile 中的约定**。
 
+    - **bash 工具使用限制**：你只能使用 bash 执行单条文件删除/重命名/移动命令（Remove-Item / Rename-Item / Move-Item / rm / del / ren / mv / move 等），禁止链式命令（; | & 重定向等）。其他命令（安装依赖、构建、lint、git 等）会被拦截，如确有需要请在执行总结中报告，由用户手动执行。
+
  6. **完成代码变更后，先判断是否需要测试，再决定走哪条路径**：
 
     A. 根据开发计划描述的功能，对照以下标准逐项判断是否适用：
@@ -184,13 +186,14 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
         |---------|---------|
         | 单元测试 | 涉及函数/方法的具体代码实现（非空函数体/占位符）、算法或业务规则。补充：仅添加空函数签名/接口声明/占位符不在此列；对已有空函数填充具体实现视为需编写测试 |
         | 接口测试 | 涉及 HTTP API 端点或其关联业务功能的代码变更（有请求参数、返回值或状态码） |
+        | 编译测试 | 涉及编译型语言或有类型检查/构建配置的代码变更（TypeScript、Go、Rust、Java 等） |
         | E2E 测试 | 涉及页面样式或页面操作逻辑的代码变更 |
 
 
-    B. 若三种测试类型均不适用（如纯文档编写、占位符、简单配置变更等），直接执行：
+    B. 若所有测试类型均不适用（如纯文档编写、占位符、简单配置变更等），直接执行：
        module_agent_plan(action="set_test_passed", plan_id="xxx", test_passed=true)
        module_agent_plan(action="plan_complete", files=["..."])
-       → 然后结束流程。
+       → 然后结束流程，系统会自动向风后发送计划完成消息。
 
     C. 若任一测试类型适用，执行以下测试流程：
 
@@ -206,7 +209,7 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
         —— 读取离朱测试报告（读取后会自动解除绑定）
 
     e. 根据测试结果决定：
-       —— 若全部测试通过：调用 module_agent_plan(action="set_test_passed", plan_id="xxx", test_passed=true); 然后调用 module_agent_plan(action="plan_complete", files=["..."])
+       —— 若全部测试通过：调用 module_agent_plan(action="set_test_passed", plan_id="xxx", test_passed=true); 然后调用 module_agent_plan(action="plan_complete", files=["..."])，结束流程，系统会自动向风后发送计划完成消息。
 
        —— 若有测试失败：根据失败信息修复代码，然后回到步骤 a 重新写入测试说明并启动离朱，直到全部通过。
 
@@ -258,6 +261,7 @@ async function handleStart(
 
   if (reusable) {
     await clearSessionChecked(workspaceDir, reusable)
+    await bindLimuStarter(workspaceDir, sessionID, reusable)
 
     const promptResult = await client.session.promptAsync({
       path: { id: reusable },
@@ -367,6 +371,7 @@ async function handleStart(
 
   setAgentMode(directory, sessionId, 'limu')
   await addModuleSession(workspaceDir, module_name, sessionId)
+  await bindLimuStarter(workspaceDir, sessionID, sessionId)
 
   const systemPrompt = buildModuleAgentSystem(agentProfile, finalCodeConventions, module_name, sessionId)
 
@@ -692,9 +697,16 @@ async function handleGaotaoStatus(
 
   const result = await readReviewResult(workspaceDir, gaotaoSid)
   if (!result || result.planReviews.length === 0) {
+    const pending = await getFirstPendingReview(workspaceDir)
+    if (pending) {
+      return {
+        title: '皋陶忙碌',
+        output: JSON.stringify({ finished: false, unresponsive: false, message: '皋陶正在审查中，有待审查计划。' }),
+      }
+    }
     return {
-      title: '皋陶无响应',
-      output: JSON.stringify({ finished: false, message: '皋陶无响应，审查结果为空', unresponsive: true }),
+      title: '无审查计划',
+      output: JSON.stringify({ finished: true, message: '皋陶无审查结果，且无待审查计划。' }),
     }
   }
 
@@ -878,7 +890,7 @@ async function handleStartLizhu(
     await client.session.promptAsync({
       path: { id: available },
       body: {
-        parts: [{ type: 'text', text: '请读取测试说明并执行测试：调用 module_agent_reader(action="read_test_specs") 获取待测试功能说明，然后按需执行 module_agent_testing(action="unit"|"interface"|"e2e")。' }],
+        parts: [{ type: 'text', text: '请读取测试说明并执行测试：调用 module_agent_reader(action="read_test_specs") 获取待测试功能说明，然后按需执行 module_agent_testing(action="unit"|"interface"|"e2e"|"compile")。' }],
       },
     })
 
@@ -946,7 +958,7 @@ async function handleStartLizhu(
     body: {
       ...(modelConfig?.lizhu ? { model: modelConfig.lizhu } : {}),
       system: systemPrompt,
-      parts: [{ type: 'text', text: '请读取测试说明并执行测试：调用 module_agent_reader(action="read_test_specs") 获取待测试功能说明，然后按需执行 module_agent_testing(action="unit"|"interface"|"e2e")。' }],
+      parts: [{ type: 'text', text: '请读取测试说明并执行测试：调用 module_agent_reader(action="read_test_specs") 获取待测试功能说明，然后按需执行 module_agent_testing(action="unit"|"interface"|"e2e"|"compile")。' }],
     },
   })
 

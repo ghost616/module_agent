@@ -26,8 +26,10 @@ import { testRunner } from './tools/testing.ts'
 import { initSessionState, getAgentMode } from './lib/session_state.ts'
 import { clearActivity, recordActivity, isWorking } from './lib/limu_monitor.ts'
 import { checkLimuPlanActive } from './lib/limu_plan_guard.ts'
+import { validateLimuBashCommand } from './lib/limu_bash_guard.ts'
+import { validateLizhuEnvCommand } from './lib/lizhu_env_guard.ts'
 import { resolveWorkspace, getWorkspaceDir } from './lib/workspace.ts'
-import { getBoundStarter, getBoundLizhu } from './lib/module_session_tracker.ts'
+import { getBoundStarter, getBoundLizhu, getLimuStarter, getGaotaoStarter, getModuleNameBySession } from './lib/module_session_tracker.ts'
 
 export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
   await ctx.client.app.log({
@@ -126,7 +128,7 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
       }
     },
 
-    'tool.execute.before': async (input, _output) => {
+    'tool.execute.before': async (input, output) => {
       const mode = getAgentMode(ctx.directory, input.sessionID)
       const blockedTools = ['write', 'edit']
 
@@ -144,6 +146,17 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
       }
 
       if (mode === 'lizhu' && !input.tool.startsWith('module_agent_')) {
+        if (input.tool === 'bash') {
+          const envError = validateLizhuEnvCommand(
+            ctx.directory,
+            String(output.args?.command ?? ''),
+            output.args?.workdir ? String(output.args.workdir) : undefined,
+          )
+          if (envError) {
+            throw new Error(envError)
+          }
+        }
+
         let workspaceDir = ''
         try {
           const ws = await resolveWorkspace(ctx.directory, input.sessionID)
@@ -161,6 +174,10 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
       }
 
       if (mode === 'limu' && !input.tool.startsWith('module_agent_')) {
+        if (input.tool === 'bash') {
+          validateLimuBashCommand(String(output.args?.command ?? ''))
+        }
+
         await checkLimuPlanActive(ctx.directory, input.sessionID)
 
         let workspaceDir = ''
@@ -201,7 +218,7 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
           clearActivity(sessionId)
         }
 
-        if (mode === 'lizhu') {
+        if (mode === 'limu' || mode === 'gaotao' || mode === 'lizhu') {
           let workspaceDir = ''
           try {
             const ws = await resolveWorkspace(ctx.directory, sessionId)
@@ -210,11 +227,11 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
             // no workspace, skip
           }
 
-          if (workspaceDir) {
+          if (workspaceDir && mode === 'lizhu') {
             const starter = await getBoundStarter(workspaceDir, sessionId)
             if (starter) {
               const starterMode = getAgentMode(ctx.directory, starter)
-              if (starterMode === 'limu') {
+              if (starterMode === 'limu' || starterMode === 'fengzhou') {
                 try {
                   await ctx.client.session.promptAsync({
                     path: { id: starter },
@@ -226,14 +243,63 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
                     body: {
                       service: 'module-agent-plugin',
                       level: 'info',
-                      message: `Notified limu ${starter} about lizhu ${sessionId} completion`,
-                      extra: { starter, lizhu: sessionId },
+                      message: `Notified ${starterMode} ${starter} about lizhu ${sessionId} completion`,
+                      extra: { starter, starterMode, lizhu: sessionId },
                     },
                   })
                 } catch {
                   // notification failed, ignore
                 }
               }
+            }
+          }
+
+          if (workspaceDir && mode === 'limu') {
+            try {
+              const starter = await getLimuStarter(workspaceDir, sessionId)
+              if (starter && getAgentMode(ctx.directory, starter) === 'fengzhou') {
+                const moduleName = await getModuleNameBySession(workspaceDir, sessionId)
+                await ctx.client.session.promptAsync({
+                  path: { id: starter },
+                  body: {
+                    parts: [{ type: 'text', text: `力牧（会话 ${sessionId}）任务完成。请调用 module_agent_executor(action="status", module_name="${moduleName ?? '<模块名>'}", session_id="${sessionId}") 获取力牧完成情况。` }],
+                  },
+                })
+                await ctx.client.app.log({
+                  body: {
+                    service: 'module-agent-plugin',
+                    level: 'info',
+                    message: `Notified fengzhou ${starter} about limu ${sessionId} completion`,
+                    extra: { starter, limu: sessionId },
+                  },
+                })
+              }
+            } catch {
+              // notification failed, ignore
+            }
+          }
+
+          if (workspaceDir && mode === 'gaotao') {
+            try {
+              const starter = await getGaotaoStarter(workspaceDir, sessionId)
+              if (starter && getAgentMode(ctx.directory, starter) === 'fengzhou') {
+                await ctx.client.session.promptAsync({
+                  path: { id: starter },
+                  body: {
+                    parts: [{ type: 'text', text: `皋陶（会话 ${sessionId}）任务完成。请调用 module_agent_executor(action="review_status") 获取审查结果。` }],
+                  },
+                })
+                await ctx.client.app.log({
+                  body: {
+                    service: 'module-agent-plugin',
+                    level: 'info',
+                    message: `Notified fengzhou ${starter} about gaotao ${sessionId} completion`,
+                    extra: { starter, gaotao: sessionId },
+                  },
+                })
+              }
+            } catch {
+              // notification failed, ignore
             }
           }
         }

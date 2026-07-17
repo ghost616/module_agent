@@ -5,6 +5,7 @@ import { getAgentMode } from '../lib/session_state.ts'
 import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
 import { getBoundStarter } from '../lib/module_session_tracker.ts'
 import { runShellCommand, runHttpRequest, runAssertions, writeTestResult, writeTestSpec, writeTestReport } from '../lib/testing.ts'
+import { validateLizhuEnvCommand } from '../lib/lizhu_env_guard.ts'
 import type { TestResult } from '../lib/types.ts'
 
 const MAX_BUFFER_UNIT = 10 * 1024 * 1024
@@ -37,16 +38,17 @@ function printAssertions(res: { passed: number; failed: number; failures: any[] 
 }
 
 export const testRunner = tool({
-  description: `代码测试工具。支持六种操作：
+  description: `代码测试工具。支持七种操作：
 - unit：执行单元测试命令（语言无关）
 - interface：发送 HTTP API 请求并自动断言
 - e2e：执行 Playwright 端到端测试命令
+- compile：执行编译/类型检查命令
 - write_spec：风后或力牧写入待测试功能说明，供测试智能体读取
 - write_report：离朱写入测试报告（Markdown 格式）
 - check_playwright：检测 Playwright 是否安装（支持 npm 和 Python）`,
   args: {
-     action: tool.schema.enum(['unit', 'interface', 'e2e', 'write_spec', 'write_report', 'check_playwright']).describe('测试类型'),
-    command: tool.schema.string().optional().describe('unit/e2e：测试命令'),
+     action: tool.schema.enum(['unit', 'interface', 'e2e', 'compile', 'write_spec', 'write_report', 'check_playwright']).describe('测试类型'),
+    command: tool.schema.string().optional().describe('unit/e2e/compile：测试或编译命令'),
     method: tool.schema.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']).optional().describe('interface：HTTP 方法'),
     url: tool.schema.string().optional().describe('interface：请求 URL'),
     headers: tool.schema.record(tool.schema.string(), tool.schema.string()).optional().describe('interface：请求头'),
@@ -88,7 +90,7 @@ export const testRunner = tool({
       if (mode !== 'lizhu') {
         return {
           title: '权限不足',
-          output: JSON.stringify({ status: 'error', error: 'module_agent_testing action="unit"|"interface"|"e2e"|"write_report" 仅供离朱调用。' }),
+          output: JSON.stringify({ status: 'error', error: 'module_agent_testing action="unit"|"interface"|"e2e"|"compile"|"write_report" 仅供离朱调用。' }),
         }
       }
     }
@@ -113,6 +115,10 @@ export const testRunner = tool({
 
     if (action === 'unit') {
       const { command, working_dir, timeout } = validated
+      const envError = validateLizhuEnvCommand(directory, command, working_dir)
+      if (envError) {
+        return { title: '目录受限', output: JSON.stringify({ status: 'error', error: envError }) }
+      }
       const cwd = working_dir || directory
       const shellResult = await runShellCommand(command, cwd, timeout ?? 300000, MAX_BUFFER_UNIT)
 
@@ -137,8 +143,38 @@ export const testRunner = tool({
       }
     }
 
+    if (action === 'compile') {
+      const { command, working_dir, timeout } = validated
+      const cwd = working_dir || directory
+      const shellResult = await runShellCommand(command, cwd, timeout ?? 300000, MAX_BUFFER_UNIT)
+
+      const result: TestResult = {
+        session_id: sessionId,
+        action: 'compile',
+        command,
+        exit_code: shellResult.exit_code,
+        stdout: shellResult.stdout,
+        stderr: shellResult.stderr,
+        duration_ms: shellResult.duration_ms,
+        timestamp: new Date().toISOString(),
+      }
+
+      if (workspaceDir) await writeTestResult(workspaceDir, 'compile', sessionId, result).catch(() => {})
+
+      const passed = shellResult.exit_code === 0
+      const title = `编译测试${passed ? '通过' : '失败'} (${shellResult.duration_ms}ms)`
+      return {
+        title,
+        output: JSON.stringify({ status: passed ? 'pass' : 'fail', exit_code: shellResult.exit_code, stdout: shellResult.stdout, stderr: shellResult.stderr, duration_ms: shellResult.duration_ms }),
+      }
+    }
+
     if (action === 'e2e') {
       const { command, working_dir, timeout } = validated
+      const envError = validateLizhuEnvCommand(directory, command, working_dir)
+      if (envError) {
+        return { title: '目录受限', output: JSON.stringify({ status: 'error', error: envError }) }
+      }
       const cwd = working_dir || directory
       const shellResult = await runShellCommand(command, cwd, timeout ?? 600000, MAX_BUFFER_E2E)
 

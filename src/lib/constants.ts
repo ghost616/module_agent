@@ -411,6 +411,14 @@ export const testE2eSchema = z.object({
   timeout: z.number().optional().default(600000).describe('超时时间（ms），默认 10 分钟'),
 })
 
+export const testCompileSchema = z.object({
+  action: z.literal('compile'),
+  command: z.string().describe('编译/类型检查命令（完整 shell 命令，如 npx tsc --noEmit、go build ./...、cargo check）'),
+  module_name: z.string().optional().describe('所属模块名称'),
+  working_dir: z.string().optional().describe('命令执行的工作目录（默认为项目根目录）'),
+  timeout: z.number().optional().default(300000).describe('超时时间（ms），默认 5 分钟'),
+})
+
 export const testWriteSpecSchema = z.object({
   action: z.literal('write_spec'),
   content: z.string().describe('待测试功能说明（Markdown 格式，描述需要测试的功能场景）'),
@@ -429,6 +437,7 @@ export const testingArgsSchema = z.discriminatedUnion('action', [
   testUnitSchema,
   testInterfaceSchema,
   testE2eSchema,
+  testCompileSchema,
   testWriteSpecSchema,
   testWriteReportSchema,
   testCheckPlaywrightSchema,

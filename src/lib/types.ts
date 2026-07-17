@@ -151,7 +151,7 @@ export interface AssertionResult {
 
 export interface TestResult {
   session_id: string
-  action: 'unit' | 'interface' | 'e2e'
+  action: 'unit' | 'interface' | 'e2e' | 'compile'
   command?: string
   request?: {
     method: string

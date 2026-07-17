@@ -17,7 +17,7 @@ export const REVIEWER_RULES = `## 皋陶（代码审查智能体）
 ### 审查循环
 
 1. 调用 **module_agent_plan(action="get_pending_review")** 获取下一个需要审查的计划
-2. 若无待审查计划 → 汇报"所有计划已审查完毕"，结束会话
+2. 若无待审查计划 → 汇报"所有计划已审查完毕"，结束会话，系统会自动向风后发送审查完成消息
 3. 若有待审查计划 → 获取返回的 development_plan（了解业务目的）和 modified_files
 4. 对每个修改文件：
    a. 通过 **read** 工具读取当前文件内容
