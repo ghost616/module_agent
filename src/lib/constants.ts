@@ -78,6 +78,11 @@ export const adminUpdateSchema = adminBaseSchema.extend({
     .optional(),
 })
 
+export const adminDeleteSchema = z.object({
+  action: z.literal('delete'),
+  module_name: z.string().describe('要删除的模块唯一标识'),
+})
+
 export const adminListDirsSchema = z.object({
   action: z.literal('list_dirs'),
   ignore: z
@@ -89,6 +94,7 @@ export const adminListDirsSchema = z.object({
 export const adminArgsSchema = z.discriminatedUnion('action', [
   adminCreateSchema,
   adminUpdateSchema,
+  adminDeleteSchema,
   adminListDirsSchema,
 ])
 

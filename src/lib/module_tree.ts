@@ -50,3 +50,12 @@ export async function addModule(
   tree.modules.push(entry)
   await writeModuleTree(directory, tree)
 }
+
+export async function removeModule(
+  directory: string,
+  name: string,
+): Promise<void> {
+  const tree = await readModuleTree(directory)
+  tree.modules = tree.modules.filter((m) => m.name !== name)
+  await writeModuleTree(directory, tree)
+}

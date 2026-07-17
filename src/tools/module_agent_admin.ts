@@ -1,9 +1,9 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
 import { readdir } from 'node:fs/promises'
 import { join, relative, dirname } from 'node:path'
 import { tool } from '@opencode-ai/plugin'
 import type { ToolResult } from '@opencode-ai/plugin'
-import { adminCreateSchema, adminUpdateSchema, adminListDirsSchema } from '../lib/constants.ts'
+import { adminCreateSchema, adminUpdateSchema, adminDeleteSchema, adminListDirsSchema } from '../lib/constants.ts'
 import { getAgentMode } from '../lib/session_state.ts'
 import {
   moduleAgentDir,
@@ -21,6 +21,7 @@ import {
   findModule,
   readModuleTree,
   writeModuleTree,
+  removeModule,
 } from '../lib/module_tree.ts'
 import {
   writeAgentProfile,
@@ -30,12 +31,13 @@ import {
   writeModuleDefinition,
   removeFilesFromModule,
 } from '../lib/module_definition.ts'
+import { removeModuleDesign } from '../lib/module_design.ts'
 import { writeText } from '../lib/fs.ts'
 
 export const moduleAgentAdmin = tool({
   description: '创建或修改力牧的配置与数据文件。用于管理项目中的模块结构。',
   args: {
-    action: tool.schema.enum(['create', 'update', 'list_dirs', 'read_modules']).describe('操作类型：create 创建模块，update 修改模块，list_dirs 列出候选模块目录，read_modules 读取所有模块'),
+    action: tool.schema.enum(['create', 'update', 'delete', 'list_dirs', 'read_modules']).describe('操作类型：create 创建模块，update 修改模块，delete 删除模块（模块定义中无文件时才可删除），list_dirs 列出候选模块目录，read_modules 读取所有模块'),
     module_name: tool.schema.string().optional().describe('模块唯一标识名称（list_dirs 时无需提供）'),
     description: tool.schema.string().optional().describe('模块说明（create/update 时有效）'),
     agent_profile_content: tool.schema.string().optional().describe('智能体文本内容，定义角色、专长、代码规范'),
@@ -85,6 +87,14 @@ export const moduleAgentAdmin = tool({
         return { title: '参数错误', output: JSON.stringify({ status: 'error', error: validate.error.message }) }
       }
       return handleCreate(directory, validate.data)
+    }
+
+    if (action === 'delete') {
+      const validate = adminDeleteSchema.passthrough().safeParse(args)
+      if (!validate.success) {
+        return { title: '参数错误', output: JSON.stringify({ status: 'error', error: validate.error.message }) }
+      }
+      return handleDelete(directory, validate.data.module_name)
     }
 
     const validate = adminUpdateSchema.passthrough().safeParse(args)
@@ -169,6 +179,44 @@ async function handleUpdate(
   return {
     title: `模块 '${module_name}' 更新成功`,
     output: JSON.stringify({ status: 'updated', changed_files: changedFiles }),
+  }
+}
+
+async function handleDelete(directory: string, moduleName: string): Promise<ToolResult> {
+  const existingModule = await findModule(directory, moduleName)
+  if (!existingModule) {
+    return {
+      title: '模块不存在',
+      output: JSON.stringify({ status: 'error', error: `模块 '${moduleName}' 不存在` }),
+    }
+  }
+
+  const def = await readModuleDefinition(directory, moduleName)
+  if (def.files.length > 0) {
+    return {
+      title: '模块非空，无法删除',
+      output: JSON.stringify({
+        status: 'error',
+        error: `模块 '${moduleName}' 的模块定义中仍有 ${def.files.length} 个文件，无法删除。请先通过 module_agent_updater(action="move_definition") 将文件移至其他模块或通过 update_definition 移除文件条目。`,
+        files: def.files.map((f) => f.path),
+      }),
+    }
+  }
+
+  await removeModule(directory, moduleName)
+  await removeModuleDesign(directory, moduleName)
+  await rm(moduleAgentDir(directory, moduleName), { recursive: true, force: true })
+
+  return {
+    title: `模块 '${moduleName}' 已删除`,
+    output: JSON.stringify({
+      status: 'deleted',
+      removed: [
+        '.module_agent/module_tree.json 中的模块条目',
+        'module_design.json 中的模块设计条目',
+        join('.module_agent', moduleName) + '/',
+      ],
+    }),
   }
 }
 

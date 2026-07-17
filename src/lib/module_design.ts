@@ -65,3 +65,14 @@ export async function addOrUpdateModule(
 
   await writeModuleDesign(directory, design)
 }
+
+export async function removeModuleDesign(
+  directory: string,
+  moduleName: string,
+): Promise<void> {
+  const design = await readModuleDesign(directory)
+  const remaining = design.modules.filter((m) => m.name !== moduleName)
+  if (remaining.length === design.modules.length) return
+  design.modules = remaining
+  await writeModuleDesign(directory, design)
+}
