@@ -23,7 +23,7 @@
 1. 初始化项目：调用 `module_agent_setup`（或输入"启动岐伯"），引导生成需求设计、代码规范、模块设计
 2. 进入编排模式：调用 `module_agent_start`（或输入"启动风后力牧"），启动编排模式
 3. 风后完成初始化：工作空间 → 模型配置 → 规范检测 → 模块树 → 评估变更 → 开发计划
-4. 确认计划 → `confirm_plan` → 启动力牧 → 统一轮询 → 离朱测试 → 皋陶审查 → Git 提交
+4. 确认计划 → `confirm_plan` → 启动力牧 → 等待完成通知 → 离朱测试 → 皋陶审查 → Git 提交
 
 ## 架构
 
@@ -52,7 +52,7 @@
 │            计划编排智能体                        │
 │  配置模型 → 检查规范 → 创建模块 → 评估变更         │
 │  → 生成计划 → confirm_plan → 启动力牧            │
-│  → 统一轮询 → 离朱测试 → 皋陶审查 → Git 提交      │
+│  → 等待通知 → 离朱测试 → 皋陶审查 → Git 提交      │
 │                                               │
 │  限制：禁止直接 write/edit 代码文件               │
 └──────┬────────────────────┬───────────────────┐
@@ -89,9 +89,9 @@
 | 岐伯 | 允许（设置阶段可修改项目文件） | 允许 | 允许 | 仅限 `module_design_admin` |
 | 隶首 | **throw 阻断** | 允许 | 允许 | 允许（归类专用工具 + `module_agent_admin(read_modules)`） |
 | 风后 | **throw 阻断** | 允许 | 允许 | 允许（编排调度用） |
-| 力牧 | 需 `checkLimuPlanActive` 通过 | 需计划检测通过 | 需计划检测通过 | 需 `limuPlanGuard` 通过 |
-| 皋陶 | **throw 阻断** | 允许 | 允许 | 仅限 `module_agent_plan` + `module_agent_updater` |
-| 离朱 | 允许（仅限测试文件） | 允许 | 允许 | 仅限 `module_agent_testing` + `module_agent_reader` |
+| 力牧 | 需 `checkLimuPlanActive` 通过 | 需计划检测 + 命令白名单过滤（仅允许文件删除/重命名/移动） | 需计划检测通过 | 需 `limuPlanGuard` 通过 |
+| 皋陶 | **throw 阻断** | 允许 | 允许 | 仅限 `module_agent_plan` + `module_agent_updater_review` + `module_agent_reader` + `module_agent_backup` |
+| 离朱 | 允许 | 允许（需检查 starter 绑定 + `.lizhu_env` 目录限制） | 允许 | 仅限 `module_agent_testing` + `module_agent_reader` |
 
 ## 工具清单（23 个自定义工具）
 
@@ -170,17 +170,17 @@
    b. 检测文件锁：`module_agent_reader(action="read_plan_files")` 查询该模块当前锁定的文件
    c. 用户确认后 → `module_agent_plan(action="confirm_plan", confirmation_code="...")` 获得 `plan_id`
    d. `module_agent_executor(action="start", plan_id=..., ...)` 启动力牧
-   e. 全部模块启动后，生成确认码询问用户是否查询子任务状态
-6. **统一轮询**：用户确认后对所有力牧调用 `module_agent_executor(action="status")`
+6. **等待完成通知**：全部模块启动后告知用户进入等待模式，力牧任务完成后会通过事件主动通知风后
+   - 收到通知后调用 `module_agent_executor(action="status")` 获取执行结果
    - 支持力牧会话重用：相同模块的力牧会话会复用，新计划注入已有会话
-   - 轮询中返回离朱绑定状态（`lizhu_session_id` / `lizhu_working`）
+   - 状态中返回离朱绑定信息（`lizhu_session_id` / `lizhu_working`）
 7. **离朱测试**（两条路径）：
    a. 力牧自动启动：完成代码 → `write_spec` → `start_lizhu` → 等待系统通知 → `read_test_results` → `set_test_passed` → `plan_complete`
    b. 风后独立启动：编写测试说明 → `write_spec` → `start_lizhu`（用户手动获取报告）
 8. **启动代码审查**：
    a. `check_reviewer` 检查皋陶状态（支持重用已有皋陶会话）
-   b. 生成确认码询问用户 → 用户确认后 `start_review`
-   c. 轮询 `review_status` 获取审查结果
+   b. 若空闲则直接 `start_review` 启动审查
+   c. 等待皋陶完成通知后调用 `review_status` 获取审查结果
 9. **汇总报告**：收集所有执行结果和审查结果
 10. **Git 提交与推送**：
     a. 检测 Git 是否安装（`git --version`），未安装则跳过
@@ -231,11 +231,13 @@ src/
 │   ├── fs.ts             # 文件系统工具
 │   ├── session_state.ts  # 会话模式状态管理
 │   ├── limu_plan_guard.ts # 力牧计划检测守卫
+│   ├── limu_bash_guard.ts  # 力牧 bash 命令白名单过滤
 │   ├── limu_monitor.ts   # 力牧活跃检测
 │   ├── classifier_rules.ts # 隶首归类规则
 │   ├── orchestrator_rules.ts # 风后编排规则
 │   ├── reviewer_rules.ts # 皋陶审查规则
 │   ├── lizhu_rules.ts    # 离朱测试规则
+│   ├── lizhu_env_guard.ts  # 离朱环境命令守卫（限制 .lizhu_env 目录）
 │   ├── setup_guide.ts    # 岐伯设置向导规则
 │   ├── development_plan.ts # 开发计划管理
 │   ├── plan_files.ts     # 文件锁管理
@@ -260,6 +262,8 @@ src/
     ├── module_agent_admin.ts
     ├── module_agent_executor.ts
     ├── module_agent_updater.ts
+    ├── module_agent_updater_plan.ts
+    ├── module_agent_updater_review.ts
     ├── module_agent_reader.ts
     ├── module_agent_start.ts
     ├── module_agent_setup.ts
