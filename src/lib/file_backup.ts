@@ -66,6 +66,53 @@ export async function backupFile(directory: string, moduleName: string, filePath
   return { success: true, message: `已备份 ${filePath}（当前备份数: ${Math.min(files.length, MAX_BACKUPS)}）` }
 }
 
+export async function listBackups(directory: string, moduleName: string, filePath: string): Promise<{ success: boolean; files?: string[]; message: string }> {
+  const mapping = await readMapping(directory, moduleName)
+  const hash = mapping[filePath]
+  if (!hash) {
+    return { success: true, files: [], message: `该文件无备份: ${filePath}` }
+  }
+
+  const backupDir = join(backupsRoot(directory, moduleName), hash)
+  if (!(await exists(backupDir))) {
+    return { success: true, files: [], message: `备份目录不存在: ${filePath}` }
+  }
+
+  const files = (await readdir(backupDir)).filter(f => f.endsWith('.bak')).sort()
+  return { success: true, files, message: `找到 ${files.length} 个备份文件` }
+}
+
+export async function readBackupContent(
+  directory: string,
+  moduleName: string,
+  filePath: string,
+  backupFileName: string,
+  startLine: number,
+  endLine?: number,
+): Promise<{ success: boolean; content?: string; message: string }> {
+  const mapping = await readMapping(directory, moduleName)
+  const hash = mapping[filePath]
+  if (!hash) {
+    return { success: false, message: `该文件无备份: ${filePath}` }
+  }
+
+  const backupDir = join(backupsRoot(directory, moduleName), hash)
+  if (!(await exists(backupDir))) {
+    return { success: false, message: `备份目录不存在: ${filePath}` }
+  }
+
+  const backupPath = join(backupDir, backupFileName)
+  if (!(await exists(backupPath))) {
+    return { success: false, message: `备份文件不存在: ${backupFileName}` }
+  }
+
+  const fullContent = await readText(backupPath)
+  const lines = fullContent.split('\n')
+  const suffix = endLine !== undefined ? lines.slice(startLine, endLine + 1) : lines.slice(startLine)
+
+  return { success: true, content: suffix.join('\n'), message: `读取 ${backupFileName} 行 ${startLine}-${endLine ?? '末尾'}` }
+}
+
 export async function readLatestBackup(directory: string, moduleName: string, filePath: string): Promise<{ success: boolean; content?: string; message: string }> {
   const mapping = await readMapping(directory, moduleName)
   const hash = mapping[filePath]

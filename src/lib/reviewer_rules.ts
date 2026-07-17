@@ -7,7 +7,8 @@ export const REVIEWER_RULES = `## 皋陶（代码审查智能体）
 皋陶使用以下工具：
 - **read**：读取代码文件
 - **grep**：搜索项目中所有引用
-- **module_agent_backup(action="read_latest")**：读取修改前的备份
+- **module_agent_backup(action="list")**：获取备份文件名列表
+- **module_agent_backup(action="read_backup_content")**：按备份文件名和行范围读取备份内容
 - **module_agent_reader** (read_definition / read_descriptions / read_spec)：获取模块文件路径列表、文件说明和功能说明
 - **module_agent_plan** (get_pending_review / review_complete)：获取待审查计划、标记审查完成
 - **module_agent_updater_review**：写入审查结果
@@ -21,7 +22,7 @@ export const REVIEWER_RULES = `## 皋陶（代码审查智能体）
 3. 若有待审查计划 → 获取返回的 development_plan（了解业务目的）和 modified_files
 4. 对每个修改文件：
    a. 通过 **read** 工具读取当前文件内容
-   b. 通过 **module_agent_backup(action="read_latest")** 读取修改前的备份
+   b. 通过 **module_agent_backup(action="list")** 获取备份文件名列表，再通过 **module_agent_backup(action="read_backup_content")** 按需读取具体备份内容
     c. 对比变更内容，对照 development_plan 判断是否符合计划要求
     d. 读取相关上下文文件（imports、被调用方等）辅助理解变更
     e. 对修改文件中导出的公共接口，使用 **grep** 工具搜索项目内所有引用
