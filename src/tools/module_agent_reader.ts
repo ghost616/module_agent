@@ -15,8 +15,9 @@ import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
 export const moduleAgentReader = tool({
   description: '读取模块元数据文件，供风后在评估变更、力牧在执行时使用，离朱读取测试说明和结果。',
   args: {
-    action: tool.schema.enum(['read_spec', 'read_definition', 'read_history', 'read_dirs', 'read_plan_files', 'read_test_results', 'read_test_specs', 'read_lizhu_results']).describe('读取目标文件'),
+    action: tool.schema.enum(['read_spec', 'read_definition', 'read_descriptions', 'read_history', 'read_dirs', 'read_plan_files', 'read_test_results', 'read_test_specs', 'read_lizhu_results']).describe('读取目标文件：read_definition 获取模块文件路径列表，read_descriptions 按路径获取文件功能说明'),
     module_name: tool.schema.string().optional().describe('模块唯一标识名称（read_test_results / read_test_specs 时无需传入）'),
+    paths: tool.schema.array(tool.schema.string()).optional().describe('read_descriptions：要查询说明的文件路径列表'),
     from: tool.schema.string().optional().describe('read_history：起始时间 ISO 8601（含）'),
     to: tool.schema.string().optional().describe('read_history：结束时间 ISO 8601（含）'),
     lizhu_session_id: tool.schema.string().optional().describe('read_test_results：离朱会话 ID（不传则读取调用者绑定的离朱结果）'),
@@ -67,7 +68,32 @@ export const moduleAgentReader = tool({
 
       if (action === 'read_definition') {
         const def = await readModuleDefinition(directory, moduleName)
-        return { title: `${moduleName} 文件定义`, output: JSON.stringify(def, null, 2) }
+        return {
+          title: `${moduleName} 文件路径列表`,
+          output: JSON.stringify({ module_name: moduleName, paths: def.files.map((f) => f.path) }),
+        }
+      }
+
+      if (action === 'read_descriptions') {
+        const paths = (args as any).paths as string[] | undefined
+        if (!paths || paths.length === 0) {
+          return { title: '参数错误', output: JSON.stringify({ status: 'error', error: 'read_descriptions 需提供非空的 paths 列表' }) }
+        }
+        const def = await readModuleDefinition(directory, moduleName)
+        const fileMap = new Map(def.files.map((f) => [f.path, f.description]))
+        const found: { path: string; description: string }[] = []
+        const notFound: string[] = []
+        for (const p of paths) {
+          if (fileMap.has(p)) {
+            found.push({ path: p, description: fileMap.get(p)! })
+          } else {
+            notFound.push(p)
+          }
+        }
+        return {
+          title: `${moduleName} 文件说明 (${found.length}/${paths.length})`,
+          output: JSON.stringify({ module_name: moduleName, files: found, not_found: notFound }, null, 2),
+        }
       }
 
       if (action === 'read_dirs') {

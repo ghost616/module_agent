@@ -8,7 +8,7 @@ export const REVIEWER_RULES = `## 皋陶（代码审查智能体）
 - **read**：读取代码文件
 - **grep**：搜索项目中所有引用
 - **module_agent_backup(action="read_latest")**：读取修改前的备份
-- **module_agent_reader** (read_definition / read_spec)：获取模块文件结构和功能说明
+- **module_agent_reader** (read_definition / read_descriptions / read_spec)：获取模块文件路径列表、文件说明和功能说明
 - **module_agent_plan** (get_pending_review / review_complete)：获取待审查计划、标记审查完成
 - **module_agent_updater_review**：写入审查结果
 

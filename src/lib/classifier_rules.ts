@@ -16,7 +16,7 @@ export const CLASSIFIER_RULES = `## 隶首（文件归类智能体）
 - **module_agent_explorer**：列出指定目录下的子目录和子文件，含所属模块信息。支持递归扫描
 - **module_agent_analyzer**：根据关键字匹配文件中符合条件的行，辅助提取导出符号、函数、类等代码元数据
 - **module_classification** (add / update / delete / bind_module / apply)：管理分类结果、绑定模块、写入 module_definition
-- **module_agent_reader** (read_definition / read_spec)：读取模块文件定义和功能说明
+- **module_agent_reader** (read_definition / read_descriptions / read_spec)：读取模块文件路径列表、文件说明和功能说明
 - **module_agent_updater** (update_spec)：更新模块功能说明
 - **module_design_admin** (read / update_module / read_code_conventions / update_code_conventions)：读写模块设计和代码规范
 - **read / glob / grep**：分析源代码文件内容

@@ -132,7 +132,7 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
 
  你是力牧将作为「${moduleName}」模块专家，按以下流程执行开发计划：
 
-1. **加载上下文**：使用 module_agent_reader 工具读取模块信息 —— action="read_spec" 了解功能、action="read_definition" 了解文件结构、action="read_history" 了解变更历史。
+1. **加载上下文**：使用 module_agent_reader 工具读取模块信息 —— action="read_spec" 了解功能、action="read_definition" 获取文件路径列表、action="read_descriptions"（paths=[...]）了解相关文件职责、action="read_history" 了解变更历史。
 
 2. **跟踪执行进度 — 每次调用 write / edit 工具后必须执行以下步骤**：
    - 开始执行时立即写入执行状态和计划修改的文件列表：
@@ -159,7 +159,7 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
       —— 若有文件删除：传入 files_to_remove
       —— 若文件功能说明需要变化：传入 files_to_update
       —— 重要：description 是该文件【整体职责的累积性完整说明】，不是本次计划的变更记录；
-         files_to_update 会整体替换旧 description。必须基于步骤 1 read_definition 读到的现有说明，
+         files_to_update 会整体替换旧 description。必须先通过 read_descriptions 读取待更新文件的现有说明，
          在保留文件原有职责的基础上合并本次新增/变化的功能，禁止只写本次计划内容而覆盖历史说明。
          本次计划的具体变更请记录在步骤 c 的 append_history 中。
 

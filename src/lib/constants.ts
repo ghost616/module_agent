@@ -233,6 +233,12 @@ export const readerDefinitionSchema = z.object({
   module_name: z.string().describe('模块唯一标识'),
 })
 
+export const readerDescriptionsSchema = z.object({
+  action: z.literal('read_descriptions'),
+  module_name: z.string().describe('模块唯一标识'),
+  paths: z.array(z.string()).min(1).describe('要查询说明的文件路径列表'),
+})
+
 export const readerHistorySchema = z.object({
   action: z.literal('read_history'),
   module_name: z.string().describe('模块唯一标识'),
@@ -253,6 +259,7 @@ export const readerReadPlanFilesSchema = z.object({
 export const readerArgsSchema = z.discriminatedUnion('action', [
   readerSpecSchema,
   readerDefinitionSchema,
+  readerDescriptionsSchema,
   readerHistorySchema,
   readerDirsSchema,
   readerReadPlanFilesSchema,
