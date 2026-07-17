@@ -36,7 +36,6 @@ export function createModuleAgentExecutor(client: OpencodeClient) {
       plan_summary: tool.schema.string().optional().describe('计划简要说明（action=start 时必填）'),
       session_id: tool.schema.string().optional().describe('会话 ID（action=status 时必填）'),
       code_conventions: tool.schema.string().optional().describe('风后传入的代码规范，若代码规范文件为空时必须传入，文件不为空则无需传入'),
-      confirmation_code: tool.schema.string().optional().describe('确认码（action=start_review 时必填）'),
     },
     async execute(args, context): Promise<ToolResult> {
       const mode = getAgentMode(context.directory, context.sessionID)
@@ -74,13 +73,6 @@ export function createModuleAgentExecutor(client: OpencodeClient) {
         }
       }
       const workspaceDir = getWorkspaceDir(directory, boundWs)
-
-      if (action === 'start' || action === 'start_review') {
-        if (action === 'start_review') {
-          const error = validateConfirmationCode(args.confirmation_code, context.sessionID)
-          if (error) return error
-        }
-      }
 
       if (action === 'start') {
         const validate = executorStartSchema.passthrough().safeParse(args)
