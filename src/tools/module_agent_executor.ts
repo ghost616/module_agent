@@ -6,7 +6,7 @@ import { getAgentMode, setAgentMode } from '../lib/session_state.ts'
 import { validateConfirmationCode, CODE_CONSUMED_NOTICE, getPlanConfirmation, consumePlanConfirmation } from './verification_code.ts'
 import { recordActivity, getSessionIdle } from '../lib/limu_monitor.ts'
 import { isWorking } from '../lib/limu_monitor.ts'
-import { getModuleLimuSession, addModuleSession, markSessionChecked, clearSessionChecked, getBoundGaotao, bindGaotao, getBoundLizhu, bindLizhu, getAvailableLizhuSession, getAllUnboundLizhuSessions, addLizhuSession, bindLimuStarter } from '../lib/module_session_tracker.ts'
+import { getModuleLimuSession, addModuleSession, markSessionChecked, clearSessionChecked, getBoundGaotao, bindGaotao, getBoundLizhu, bindLizhu, getAvailableLizhuSession, getAllUnboundLizhuSessions, addLizhuSession, bindLimuStarter, getLimuStarter, bindLizhuFengzhou } from '../lib/module_session_tracker.ts'
 import { findModule } from '../lib/module_tree.ts'
 import { readAgentProfile } from '../lib/agent_profile.ts'
 import { readCodeConventions } from '../lib/code_conventions.ts'
@@ -942,6 +942,13 @@ async function handleStartLizhu(
   setAgentMode(directory, lizhuSessionId, 'lizhu')
   await addLizhuSession(workspaceDir, lizhuSessionId)
   await bindLizhu(workspaceDir, starterSessionId, lizhuSessionId)
+
+  if (callerMode === 'limu') {
+    const fengzhouSessionId = await getLimuStarter(workspaceDir, starterSessionId)
+    if (fengzhouSessionId) {
+      await bindLizhuFengzhou(workspaceDir, lizhuSessionId, fengzhouSessionId)
+    }
+  }
 
   const systemPrompt = buildLizhuSystem()
 

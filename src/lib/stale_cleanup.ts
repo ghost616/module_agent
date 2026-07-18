@@ -1,7 +1,7 @@
 import type { OpencodeClient } from '@opencode-ai/sdk'
 import { cleanStalePlans } from './development_plan.ts'
 import { cleanStaleSessionPlanMap, removeMappingByPlanId } from './session_plan_map.ts'
-import { cleanStaleModuleSessions, cleanStaleGaotaoMap, cleanStaleLimuMap, cleanStaleLizhuMap } from './module_session_tracker.ts'
+import { cleanStaleModuleSessions, cleanStaleGaotaoMap, cleanStaleLimuMap, cleanStaleLizhuMap, cleanStaleLizhuFengzhouMap } from './module_session_tracker.ts'
 import { cleanStaleExecutions } from './execution_result.ts'
 import { cleanStaleReviewResults } from './review_result.ts'
 import { cleanStaleAgentModes } from './session_state.ts'
@@ -36,6 +36,7 @@ export interface WorkspaceCleanupStats {
   gaotao_bindings: number
   limu_bindings: number
   lizhu_bindings: number
+  lizhu_fengzhou_bindings: number
   executions: number
   review_results: number
 }
@@ -55,6 +56,7 @@ export async function cleanWorkspaceStale(
   const gaotao_bindings = await cleanStaleGaotaoMap(workspaceDir, isAlive)
   const limu_bindings = await cleanStaleLimuMap(workspaceDir, isAlive)
   const lizhu_bindings = await cleanStaleLizhuMap(workspaceDir, isAlive)
+  const lizhu_fengzhou_bindings = await cleanStaleLizhuFengzhouMap(workspaceDir, isAlive)
   const executions = await cleanStaleExecutions(workspaceDir, isAlive)
   const review_results = await cleanStaleReviewResults(workspaceDir, isAlive)
 
@@ -65,6 +67,7 @@ export async function cleanWorkspaceStale(
     gaotao_bindings,
     limu_bindings,
     lizhu_bindings,
+    lizhu_fengzhou_bindings,
     executions,
     review_results,
   }

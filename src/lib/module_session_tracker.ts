@@ -106,12 +106,14 @@ export async function clearSessionChecked(workspaceDir: string, sessionId: strin
 // - gaotao: 风后 sid → 皋陶 sid
 // - limu:   力牧 sid → 风后 sid
 // - lizhu:  启动者 sid → 离朱 sid
+// - lizhu_fengzhou: 离朱 sid → 风后 sid
 // ============================================================
 
 interface SessionBindings {
   gaotao: Record<string, string>
   limu: Record<string, string>
   lizhu: Record<string, string>
+  lizhu_fengzhou: Record<string, string>
 }
 
 const LEGACY_FILES: Array<{ key: keyof SessionBindings; file: string }> = [
@@ -128,10 +130,10 @@ async function readBindings(workspaceDir: string): Promise<SessionBindings> {
   const path = bindingsPath(workspaceDir)
   if (await exists(path)) {
     const data = await readJson<Partial<SessionBindings>>(path)
-    return { gaotao: data.gaotao ?? {}, limu: data.limu ?? {}, lizhu: data.lizhu ?? {} }
+    return { gaotao: data.gaotao ?? {}, limu: data.limu ?? {}, lizhu: data.lizhu ?? {}, lizhu_fengzhou: data.lizhu_fengzhou ?? {} }
   }
 
-  const bindings: SessionBindings = { gaotao: {}, limu: {}, lizhu: {} }
+  const bindings: SessionBindings = { gaotao: {}, limu: {}, lizhu: {}, lizhu_fengzhou: {} }
   for (const { key, file } of LEGACY_FILES) {
     const legacyPath = join(workspaceDir, file)
     if (await exists(legacyPath)) {
@@ -267,6 +269,13 @@ export async function getLimuStarter(workspaceDir: string, limuSessionId: string
   return data.limu[limuSessionId] ?? null
 }
 
+export async function getFengzhouLimuSessions(workspaceDir: string, fengzhouSessionId: string): Promise<string[]> {
+  const data = await readBindings(workspaceDir)
+  return Object.entries(data.limu)
+    .filter(([, fsid]) => fsid === fengzhouSessionId)
+    .map(([lsid]) => lsid)
+}
+
 export async function isLimuBoundToFengzhou(
   workspaceDir: string,
   fengzhouSessionId: string,
@@ -320,6 +329,64 @@ export async function getBoundStarter(workspaceDir: string, lizhuSessionId: stri
     if (lizhu === lizhuSessionId) return starter
   }
   return null
+}
+
+// ============================================================
+// 离朱 ↔ 风后 会话绑定（力牧新开离朱时绑定所属风后）
+// ============================================================
+
+export async function bindLizhuFengzhou(workspaceDir: string, lizhuSessionId: string, fengzhouSessionId: string): Promise<void> {
+  const data = await readBindings(workspaceDir)
+  data.lizhu_fengzhou[lizhuSessionId] = fengzhouSessionId
+  await writeBindings(workspaceDir, data)
+}
+
+export async function unbindLizhuFengzhou(workspaceDir: string, lizhuSessionId: string): Promise<void> {
+  const data = await readBindings(workspaceDir)
+  if (!(lizhuSessionId in data.lizhu_fengzhou)) return
+  delete data.lizhu_fengzhou[lizhuSessionId]
+  await writeBindings(workspaceDir, data)
+}
+
+export async function getLizhuFengzhou(workspaceDir: string, lizhuSessionId: string): Promise<string | null> {
+  const data = await readBindings(workspaceDir)
+  return data.lizhu_fengzhou[lizhuSessionId] ?? null
+}
+
+export async function getFengzhouLizhuSessions(workspaceDir: string, fengzhouSessionId: string): Promise<string[]> {
+  const data = await readBindings(workspaceDir)
+  const result = new Set<string>()
+
+  const direct = data.lizhu[fengzhouSessionId]
+  if (direct) result.add(direct)
+
+  for (const [limuSid, fsid] of Object.entries(data.limu)) {
+    if (fsid !== fengzhouSessionId) continue
+    const lizhuSid = data.lizhu[limuSid]
+    if (lizhuSid) result.add(lizhuSid)
+  }
+
+  for (const [lizhuSid, fsid] of Object.entries(data.lizhu_fengzhou)) {
+    if (fsid === fengzhouSessionId) result.add(lizhuSid)
+  }
+
+  return [...result]
+}
+
+export async function cleanStaleLizhuFengzhouMap(
+  workspaceDir: string,
+  isAlive: (sessionId: string) => Promise<boolean>,
+): Promise<number> {
+  const data = await readBindings(workspaceDir)
+  let removed = 0
+  for (const [lsid, fsid] of Object.entries(data.lizhu_fengzhou)) {
+    if (!(await isAlive(lsid)) || !(await isAlive(fsid))) {
+      delete data.lizhu_fengzhou[lsid]
+      removed++
+    }
+  }
+  if (removed > 0) await writeBindings(workspaceDir, data)
+  return removed
 }
 
 export async function getAvailableLizhuSession(workspaceDir: string, client: OpencodeClient): Promise<string | null> {
@@ -387,6 +454,7 @@ export async function addLizhuSession(workspaceDir: string, sessionId: string): 
 export async function removeLizhuSession(workspaceDir: string, sessionId: string): Promise<void> {
   const starter = await getBoundStarter(workspaceDir, sessionId)
   if (starter) await unbindLizhu(workspaceDir, starter)
+  await unbindLizhuFengzhou(workspaceDir, sessionId)
 
   const sessions = await readLizhuSessions(workspaceDir)
   const filtered = sessions.filter(s => s !== sessionId)
