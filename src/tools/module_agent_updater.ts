@@ -46,13 +46,13 @@ export const moduleAgentUpdater = tool({
     const action = args.action as string
     const mode = getAgentMode(directory, context.sessionID)
 
-    const fengzhouAllowed = ['update_definition', 'move_definition']
+    const fengzhouAllowed = ['update_definition', 'move_definition', 'update_spec']
     const lishouAllowed = ['update_spec']
 
     if (mode === 'fengzhou' && !fengzhouAllowed.includes(action)) {
       return {
         title: '权限不足',
-        output: JSON.stringify({ status: 'error', error: `风后仅可使用 module_agent_updater 的 update_definition 和 move_definition 操作。` }),
+        output: JSON.stringify({ status: 'error', error: `风后仅可使用 module_agent_updater 的 update_definition、move_definition 和 update_spec 操作。` }),
       }
     }
     if (mode === 'lishou' && !lishouAllowed.includes(action)) {
