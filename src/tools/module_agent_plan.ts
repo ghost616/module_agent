@@ -1,6 +1,7 @@
 import { tool } from '@opencode-ai/plugin'
 import type { ToolResult } from '@opencode-ai/plugin'
 import { join } from 'node:path'
+import { readdir } from 'node:fs/promises'
 import { planReadMetadataSchema, planReadPlanSchema, planCompleteSchema, planDeleteSchema, planCreateReviewSchema, planSetTestPassedSchema, planConfirmPlanSchema } from '../lib/constants.ts'
 import { getAgentMode } from '../lib/session_state.ts'
 import {
@@ -139,7 +140,6 @@ export const moduleAgentPlan = tool({
       const planId = validate.data.plan_id
       const passed = validate.data.test_passed
 
-      // 检测离朱是否已解绑，未解绑则读取测试报告解绑
       const lizhuSid = await getBoundLizhu(wsDir, context.sessionID)
       if (lizhuSid) {
         const reportPath = join(wsDir, 'test_reports', `${lizhuSid}.json`)
@@ -154,6 +154,27 @@ export const moduleAgentPlan = tool({
           }
         }
         await unbindLizhu(wsDir, context.sessionID)
+      }
+
+      if (passed && !lizhuSid) {
+        const testSpecPath = join(wsDir, 'test_specs', `${context.sessionID}.json`)
+        if (await exists(testSpecPath)) {
+          const testReportsDir = join(wsDir, 'test_reports')
+          let hasReports = false
+          if (await exists(testReportsDir)) {
+            const files = await readdir(testReportsDir)
+            hasReports = files.length > 0
+          }
+          if (!hasReports) {
+            return {
+              title: '测试未执行',
+              output: JSON.stringify({
+                status: 'error',
+                error: '已规划测试但尚未执行。请先调用 module_agent_executor(action="start_lizhu") 启动离朱测试，等待离朱完成后调用 module_agent_reader(action="read_test_results") 读取测试报告。',
+              }),
+            }
+          }
+        }
       }
 
       const ok = await markTestPassed(wsDir, planId, passed)
