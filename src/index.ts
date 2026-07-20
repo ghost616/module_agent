@@ -178,6 +178,13 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
           validateLimuBashCommand(String(output.args?.command ?? ''))
         }
 
+        if (blockedTools.includes(input.tool)) {
+          const filePath = String(output.args?.filePath ?? '')
+          if (filePath.includes('.module_agent')) {
+            throw new Error('力牧不直接修改 .module_agent 下的文件，请使用 module_agent_updater 工具。')
+          }
+        }
+
         await checkLimuPlanActive(ctx.directory, input.sessionID)
 
         let workspaceDir = ''
