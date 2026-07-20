@@ -145,11 +145,12 @@ export const CLASSIFIER_RULES = `## 隶首（文件归类智能体）
 1. **有文件新增的已有模块**（bind_module 时 is_new_module=false 的模块）：
    a. 调用 module_design_admin(action="update_module", ...) 更新模块设计
    b. 调用 module_agent_reader(action="read_spec", module_name="模块名") 读取当前功能说明
-   c. 调用 module_agent_updater(action="update_spec", ...) 更新功能说明
+   c. 调用 module_agent_reader(action="read_spec_headings", module_name="模块名") 获取已有标题列表
+   d. 调用 module_agent_updater(action="update_spec", heading="已有标题或新标题", ...) 更新功能说明，heading 必须与 read_spec_headings 返回的标题精确匹配
 
 2. **新建的模块**（bind_module 时 is_new_module=true 的模块）：
-   调用 module_agent_updater(action="update_spec", ...) 更新功能说明
-   （模块设计已在 bind_module 内部通过 add_module 添加，无需再次 update_module）
+    调用 module_agent_updater(action="update_spec", heading="新标题", ...) 更新功能说明
+    （模块设计已在 bind_module 内部通过 add_module 添加，无需再次 update_module）
 
 #### 第七步：汇总报告
 

@@ -152,7 +152,7 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
 4. **完成代码变更或调用 write / edit 工具后，必须按顺序调用 module_agent_updater 工具记录结果**：
 
    a. 调用 module_agent_updater(action="update_spec", ...)
-      —— 对 current_spec.md 中受影响的 ## 二级标题做增量更新
+       —— 对 current_spec.md 中受影响的 ## 二级标题做增量更新。调用前必须先调用 module_agent_reader(action="read_spec_headings", module_name="${moduleName}") 获取已有标题列表，确保 heading 参数准确。
 
    b. 调用 module_agent_updater(action="update_definition", ...)
       —— 若有新文件：传入 files_to_add（description 为该文件【整体功能职责】的完整说明）
