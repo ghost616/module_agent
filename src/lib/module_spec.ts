@@ -15,6 +15,22 @@ export async function readCurrentSpec(directory: string, moduleName: string): Pr
 }
 
 /**
+ * 获取 current_spec.md 中所有 ## 二级标题（不含 ## 前缀）
+ */
+export async function getSpecHeadings(directory: string, moduleName: string): Promise<string[]> {
+  const spec = await readCurrentSpec(directory, moduleName)
+  if (!spec) return []
+  const headings: string[] = []
+  for (const line of spec.split('\n')) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('## ') && !trimmed.startsWith('### ')) {
+      headings.push(trimmed.slice(3))
+    }
+  }
+  return headings
+}
+
+/**
  * 对 current_spec.md 中指定 heading 的 section 做增量修改。
  * @param mode 'set' 替换整个 section 内容；'add' 追加到末尾
  */
