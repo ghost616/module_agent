@@ -152,7 +152,11 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
 4. **完成代码变更或调用 write / edit 工具后，必须按顺序调用 module_agent_updater 工具记录结果**：
 
    a. 调用 module_agent_updater(action="update_spec", ...)
-       —— 对 current_spec.md 中受影响的 ## 二级标题做增量更新。调用前必须先调用 module_agent_reader(action="read_spec_headings", module_name="${moduleName}") 获取已有标题列表，确保 heading 参数准确。
+        —— 对 current_spec.md 中受影响的 ## 二级标题做增量更新。
+        调用 update_spec 前，必须先通过以下步骤读取数据：
+        - 调用 module_agent_reader(action="read_spec_headings", module_name="${moduleName}") 获取已有标题列表
+        - 若 heading 已存在：再调用 module_agent_reader(action="read_spec_section", module_name="${moduleName}", heading="xxx") 获取该 section 现有内容，根据现有内容决定更新策略（mode='add' 追加或 mode='set' 替换）
+        - 若 heading 不存在（新建 section）：直接使用 mode='add'，无需调用 read_spec_section
 
    b. 调用 module_agent_updater(action="update_definition", ...)
       —— 若有新文件：传入 files_to_add（description 为该文件【整体功能职责】的完整说明）
@@ -691,6 +695,12 @@ async function handleGaotaoStatus(
   if (!result || result.planReviews.length === 0) {
     const pending = await getFirstPendingReview(workspaceDir)
     if (pending) {
+      if (!idleInfo.lastActivity) {
+        return {
+          title: '皋陶空闲',
+          output: JSON.stringify({ finished: false, idle: true, message: '皋陶空闲，有待审查计划未完成，请调用 ping 提醒。', pending_review: true }),
+        }
+      }
       return {
         title: '皋陶忙碌',
         output: JSON.stringify({ finished: false, unresponsive: false, message: '皋陶正在审查中，有待审查计划。' }),
@@ -739,10 +749,19 @@ async function handleCheckReviewer(
   }
 
   const result = await readReviewResult(workspaceDir, gaotaoSid)
+  if (!idleInfo.lastActivity) {
+    const pending = await getFirstPendingReview(workspaceDir)
+    if (pending) {
+      return {
+        title: '皋陶空闲',
+        output: JSON.stringify({ bound: true, idle: true, message: '皋陶空闲，有待审查计划未完成，请调用 ping 提醒。', pending_review: true }),
+      }
+    }
+  }
   if (!result || result.planReviews.length === 0) {
     return {
-      title: '皋陶无响应',
-      output: JSON.stringify({ bound: true, idle: false, unresponsive: true, message: '皋陶无响应，审查结果为空' }),
+      title: '皋陶空闲',
+      output: JSON.stringify({ bound: true, idle: true, message: '皋陶空闲，审查结果为空' }),
     }
   }
 

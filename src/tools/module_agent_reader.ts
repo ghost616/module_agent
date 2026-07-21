@@ -4,7 +4,7 @@ import type { ToolResult } from '@opencode-ai/plugin'
 import { findModule } from '../lib/module_tree.ts'
 import { getAgentMode } from '../lib/session_state.ts'
 import { limuPlanGuard } from '../lib/limu_plan_guard.ts'
-import { readCurrentSpec, getSpecHeadings } from '../lib/module_spec.ts'
+import { readCurrentSpec, getSpecHeadings, getSpecSection } from '../lib/module_spec.ts'
 import { readModuleDefinition, getModuleParentDirs } from '../lib/module_definition.ts'
 import { moduleAgentDir, CHANGE_HISTORY_FILE } from '../lib/constants.ts'
 import { exists, readText, readJson } from '../lib/fs.ts'
@@ -15,12 +15,13 @@ import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
 export const moduleAgentReader = tool({
   description: '读取模块元数据文件，供风后在评估变更、力牧在执行时使用，离朱读取测试说明和结果。',
   args: {
-    action: tool.schema.enum(['read_spec', 'read_spec_headings', 'read_definition', 'read_descriptions', 'read_history', 'read_dirs', 'read_plan_files', 'read_test_results', 'read_test_specs', 'read_lizhu_results']).describe('读取目标文件：read_definition 获取模块文件路径列表，read_descriptions 按路径获取文件功能说明'),
+    action: tool.schema.enum(['read_spec', 'read_spec_headings', 'read_spec_section', 'read_definition', 'read_descriptions', 'read_history', 'read_dirs', 'read_plan_files', 'read_test_results', 'read_test_specs', 'read_lizhu_results']).describe('读取目标文件：read_definition 获取模块文件路径列表，read_descriptions 按路径获取文件功能说明'),
     module_name: tool.schema.string().optional().describe('模块唯一标识名称（read_test_results / read_test_specs 时无需传入）'),
     paths: tool.schema.array(tool.schema.string()).optional().describe('read_descriptions：要查询说明的文件路径列表'),
     from: tool.schema.string().optional().describe('read_history：起始时间 ISO 8601（含）'),
     to: tool.schema.string().optional().describe('read_history：结束时间 ISO 8601（含）'),
     lizhu_session_id: tool.schema.string().optional().describe('read_test_results：离朱会话 ID（不传则读取调用者绑定的离朱结果）'),
+    heading: tool.schema.string().optional().describe('read_spec_section：要读取的 section 标题名（不含 ## 前缀）'),
   },
   async execute(args, context): Promise<ToolResult> {
     const mode = getAgentMode(context.directory, context.sessionID)
@@ -69,6 +70,15 @@ export const moduleAgentReader = tool({
       if (action === 'read_spec_headings') {
         const headings = await getSpecHeadings(directory, moduleName)
         return { title: `${moduleName} 功能说明标题`, output: JSON.stringify({ headings }) }
+      }
+
+      if (action === 'read_spec_section') {
+        const heading = (args as any).heading as string | undefined
+        if (!heading) {
+          return { title: '参数错误', output: JSON.stringify({ status: 'error', error: 'read_spec_section 需提供 heading 参数' }) }
+        }
+        const section = await getSpecSection(directory, moduleName, heading)
+        return { title: `${moduleName} - ${heading}`, output: section || '(空)' }
       }
 
       if (action === 'read_definition') {

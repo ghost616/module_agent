@@ -31,6 +31,37 @@ export async function getSpecHeadings(directory: string, moduleName: string): Pr
 }
 
 /**
+ * 获取 current_spec.md 中指定 heading 下 section 的内容。
+ * 从标题行下一行起，到下一个 ## 标题或文件末尾为止。
+ */
+export async function getSpecSection(
+  directory: string,
+  moduleName: string,
+  heading: string,
+): Promise<string> {
+  const spec = await readCurrentSpec(directory, moduleName)
+  if (!spec) return ''
+  const lines = spec.split('\n')
+  const marker = `## ${heading}`
+  let headingLine = -1
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim() === marker) {
+      headingLine = i
+      break
+    }
+  }
+  if (headingLine === -1) return ''
+  let nextHeading = lines.length
+  for (let i = headingLine + 1; i < lines.length; i++) {
+    if (lines[i].startsWith('## ')) {
+      nextHeading = i
+      break
+    }
+  }
+  return lines.slice(headingLine + 1, nextHeading).join('\n').trim()
+}
+
+/**
  * 对 current_spec.md 中指定 heading 的 section 做增量修改。
  * @param mode 'set' 替换整个 section 内容；'add' 追加到末尾
  */
@@ -58,8 +89,8 @@ export async function updateSpecSection(
   }
 
   if (headingLine === -1) {
-    if (mode === 'add') {
-      throw new Error(`Heading '${marker}' 不存在，无法追加内容`)
+    if (mode === 'set') {
+      throw new Error(`Heading '${marker}' 不存在，无法替换内容`)
     }
     const newSection = `\n${marker}\n\n${content}\n`
     spec = spec.trimEnd() + newSection
