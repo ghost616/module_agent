@@ -3,7 +3,7 @@ import type { ToolResult } from '@opencode-ai/plugin'
 import type { OpencodeClient } from '@opencode-ai/sdk'
 import { getAgentMode, clearAgentMode } from '../lib/session_state.ts'
 import { validateConfirmationCode, CODE_CONSUMED_NOTICE } from './verification_code.ts'
-import { removeModuleSession, isSessionChecked, clearSessionChecked, unbindGaotao, isGaotaoBoundToFengzhou, getBoundStarter, removeLizhuSession, getLimuStarter, getBoundGaotao, getFengzhouLimuSessions, getFengzhouLizhuSessions, getModuleNameBySession } from '../lib/module_session_tracker.ts'
+import { removeModuleSession, isSessionChecked, clearSessionChecked, unbindGaotao, isGaotaoBoundToFengzhou, getBoundStarter, removeLizhuSession, getLimuStarter, getBoundGaotao, getFengzhouLimuSessions, getFengzhouLizhuSessions, getModuleNameBySession, unbindKui, getBoundKui, isKuiBoundToFengzhou, getLimuSessionsByStarter, getBoundLizhu } from '../lib/module_session_tracker.ts'
 import { deleteExecutionRecords, readAndCleanExecutionRecords } from '../lib/execution_result.ts'
 import { clearActivity, getSessionIdle } from '../lib/limu_monitor.ts'
 import { deleteReviewResult, readReviewResult } from '../lib/review_result.ts'
@@ -78,6 +78,14 @@ async function getLizhuBlockReason(wsDir: string, sessionId: string, checkBusy: 
   return null
 }
 
+async function getKuiBlockReason(wsDir: string, sessionId: string): Promise<string | null> {
+  const busy = isBusy(sessionId)
+  if (busy) {
+    return '夔正在执行批量计划。'
+  }
+  return null
+}
+
 // ============================================================
 // 会话关闭与关联数据清理（alive=false 时仅清理数据）
 // ============================================================
@@ -120,6 +128,16 @@ async function cleanupLimu(client: OpencodeClient, directory: string, wsDir: str
     await deletePlan(wsDir, planId)
   }
   await removeMapping(wsDir, sessionId)
+  await removeSessionWorkspace(directory, sessionId)
+}
+
+async function cleanupKui(client: OpencodeClient, directory: string, wsDir: string, fengzhouSessionId: string, sessionId: string, alive: boolean): Promise<void> {
+  if (alive) {
+    await client.session.delete({ path: { id: sessionId } })
+  }
+  clearAgentMode(directory, sessionId)
+  clearActivity(sessionId)
+  await unbindKui(wsDir, fengzhouSessionId)
   await removeSessionWorkspace(directory, sessionId)
 }
 
@@ -175,7 +193,7 @@ export function createModuleAgentDone(client: OpencodeClient) {
       }
       const targetMode = getAgentMode(directory, sessionId)
 
-      if (targetMode === 'limu' || targetMode === 'gaotao' || targetMode === 'lizhu') {
+      if (targetMode === 'limu' || targetMode === 'gaotao' || targetMode === 'lizhu' || targetMode === 'kui') {
         const sessionWs = await getSessionWorkspace(directory, sessionId)
         if (sessionWs && sessionWs !== boundWs) {
           return {
@@ -226,12 +244,90 @@ export function createModuleAgentDone(client: OpencodeClient) {
           : { title: '会话不存在', output: closedNotice(`会话 ${sessionId} 不存在，已清理关联数据。`) }
       }
 
+      if (targetMode === 'kui') {
+        if (!(await isKuiBoundToFengzhou(wsDir, context.sessionID, sessionId))) {
+          return {
+            title: '权限不足',
+            output: JSON.stringify({ status: 'error', error: '该夔不是当前风后开启的，无法关闭。' }),
+          }
+        }
+
+        const kuiLimuSids = await getLimuSessionsByStarter(wsDir, sessionId)
+        const kuiGaotaoSid = await getBoundGaotao(wsDir, sessionId, client)
+
+        const blockers: Array<{ session_id: string; agent: string; reason: string }> = []
+
+        if (alive) {
+          const reason = await getKuiBlockReason(wsDir, sessionId)
+          if (reason) blockers.push({ session_id: sessionId, agent: 'kui', reason })
+        }
+
+        for (const limuSid of kuiLimuSids) {
+          if (!(await isAlive(limuSid))) continue
+          const limuModule = await getModuleNameBySession(wsDir, limuSid)
+          const reason = await getLimuBlockReason(wsDir, limuModule, limuSid)
+          if (reason) blockers.push({ session_id: limuSid, agent: 'limu', reason })
+        }
+
+        if (kuiGaotaoSid && (await isAlive(kuiGaotaoSid))) {
+          const reason = await getGaotaoBlockReason(wsDir, kuiGaotaoSid, true)
+          if (reason) blockers.push({ session_id: kuiGaotaoSid, agent: 'gaotao', reason })
+        }
+
+        for (const limuSid of kuiLimuSids) {
+          const lizhuSid = await getBoundLizhu(wsDir, limuSid)
+          if (lizhuSid && (await isAlive(lizhuSid))) {
+            const reason = await getLizhuBlockReason(wsDir, lizhuSid, true)
+            if (reason) blockers.push({ session_id: lizhuSid, agent: 'lizhu', reason })
+          }
+        }
+
+        if (blockers.length > 0) {
+          return {
+            title: `${blockers.length} 个关联会话不可关闭`,
+            output: JSON.stringify({ status: 'error', error: '夔及其关联会话存在不可关闭的会话，本次未关闭任何会话。', blockers }),
+          }
+        }
+
+        const closed: string[] = []
+
+        for (const limuSid of kuiLimuSids) {
+          const lizhuSid = await getBoundLizhu(wsDir, limuSid)
+          if (lizhuSid) {
+            await cleanupLizhu(client, directory, wsDir, lizhuSid, await isAlive(lizhuSid))
+            closed.push(lizhuSid)
+          }
+        }
+
+        for (const limuSid of kuiLimuSids) {
+          const limuModule = await getModuleNameBySession(wsDir, limuSid)
+          await cleanupLimu(client, directory, wsDir, limuModule, limuSid, await isAlive(limuSid))
+          closed.push(limuSid)
+        }
+
+        if (kuiGaotaoSid) {
+          await cleanupGaotao(client, directory, wsDir, sessionId, kuiGaotaoSid, await isAlive(kuiGaotaoSid))
+          closed.push(kuiGaotaoSid)
+        }
+
+        await cleanupKui(client, directory, wsDir, context.sessionID, sessionId, alive)
+        closed.push(sessionId)
+
+        return {
+          title: `已关闭 ${closed.length} 个会话`,
+          output: closedNotice(`夔及其关联的 ${closed.length - 1} 个会话已关闭。`),
+        }
+      }
+
       if (alive) {
         const limuStarter = await getLimuStarter(wsDir, sessionId)
         if (limuStarter && limuStarter !== context.sessionID) {
-          return {
-            title: '权限不足',
-            output: JSON.stringify({ status: 'error', error: '该力牧不是当前风后开启的，无法关闭。' }),
+          const kuiBound = await isKuiBoundToFengzhou(wsDir, context.sessionID, limuStarter)
+          if (!kuiBound) {
+            return {
+              title: '权限不足',
+              output: JSON.stringify({ status: 'error', error: '该力牧不是当前风后开启的，无法关闭。' }),
+            }
           }
         }
         const reason = await getLimuBlockReason(wsDir, moduleName ?? null, sessionId)
@@ -260,13 +356,15 @@ async function handleCloseAll(
 
   // 收集当前风后关联的会话
   const gaotaoSid = await getBoundGaotao(wsDir, fengzhouSessionId, client)
+  const kuiSid = await getBoundKui(wsDir, fengzhouSessionId, client)
+  const kuiGaotaoSid = kuiSid ? await getBoundGaotao(wsDir, kuiSid, client) : null
   const limuSids = await getFengzhouLimuSessions(wsDir, fengzhouSessionId)
   const lizhuSids = await getFengzhouLizhuSessions(wsDir, fengzhouSessionId)
 
-  if (!gaotaoSid && limuSids.length === 0 && lizhuSids.length === 0) {
+  if (!gaotaoSid && !kuiGaotaoSid && !kuiSid && limuSids.length === 0 && lizhuSids.length === 0) {
     return {
       title: '无关联会话',
-      output: JSON.stringify({ status: 'ok', message: '当前风后没有关联的皋陶、力牧或离朱会话。', notice: CODE_CONSUMED_NOTICE }),
+      output: JSON.stringify({ status: 'ok', message: '当前风后没有关联的皋陶、力牧、离朱或夔会话。', notice: CODE_CONSUMED_NOTICE }),
     }
   }
 
@@ -276,6 +374,11 @@ async function handleCloseAll(
   if (gaotaoSid) {
     const reason = await getGaotaoBlockReason(wsDir, gaotaoSid, true)
     if (reason) blockers.push({ session_id: gaotaoSid, agent: 'gaotao', reason })
+  }
+
+  if (kuiGaotaoSid) {
+    const reason = await getGaotaoBlockReason(wsDir, kuiGaotaoSid, true)
+    if (reason) blockers.push({ session_id: kuiGaotaoSid, agent: 'gaotao', reason })
   }
 
   const limuModules = new Map<string, string | null>()
@@ -294,6 +397,11 @@ async function handleCloseAll(
     if (reason) blockers.push({ session_id: lizhuSid, agent: 'lizhu', reason })
   }
 
+  if (kuiSid) {
+    const reason = await getKuiBlockReason(wsDir, kuiSid)
+    if (reason) blockers.push({ session_id: kuiSid, agent: 'kui', reason })
+  }
+
   if (blockers.length > 0) {
     return {
       title: `${blockers.length} 个会话不可关闭`,
@@ -302,7 +410,7 @@ async function handleCloseAll(
   }
 
   // 全部可关闭，逐个关闭并清理关联数据
-  const closed = { gaotao: [] as string[], limu: [] as string[], lizhu: [] as string[] }
+  const closed = { gaotao: [] as string[], limu: [] as string[], lizhu: [] as string[], kui: [] as string[] }
 
   for (const lizhuSid of lizhuSids) {
     await cleanupLizhu(client, directory, wsDir, lizhuSid, await isAlive(lizhuSid))
@@ -319,7 +427,17 @@ async function handleCloseAll(
     closed.gaotao.push(gaotaoSid)
   }
 
-  const total = closed.gaotao.length + closed.limu.length + closed.lizhu.length
+  if (kuiGaotaoSid && kuiSid) {
+    await cleanupGaotao(client, directory, wsDir, kuiSid, kuiGaotaoSid, await isAlive(kuiGaotaoSid))
+    closed.gaotao.push(kuiGaotaoSid)
+  }
+
+  if (kuiSid) {
+    await cleanupKui(client, directory, wsDir, fengzhouSessionId, kuiSid, await isAlive(kuiSid))
+    closed.kui.push(kuiSid)
+  }
+
+  const total = closed.gaotao.length + closed.limu.length + closed.lizhu.length + closed.kui.length
   return {
     title: `已关闭 ${total} 个会话`,
     output: JSON.stringify({ status: 'ok', closed, notice: CODE_CONSUMED_NOTICE }),
@@ -340,10 +458,11 @@ async function handleListIdle(
   const isAlive = makeAliveChecker(client)
 
   const gaotaoSid = await getBoundGaotao(wsDir, fengzhouSessionId, client)
+  const kuiSid = await getBoundKui(wsDir, fengzhouSessionId, client)
   const limuSids = await getFengzhouLimuSessions(wsDir, fengzhouSessionId)
   const lizhuSids = await getFengzhouLizhuSessions(wsDir, fengzhouSessionId)
 
-  const idleSessions = { gaotao: [] as IdleSessionInfo[], limu: [] as IdleSessionInfo[], lizhu: [] as IdleSessionInfo[] }
+  const idleSessions = { gaotao: [] as IdleSessionInfo[], limu: [] as IdleSessionInfo[], lizhu: [] as IdleSessionInfo[], kui: [] as IdleSessionInfo[] }
 
   if (gaotaoSid && (await isAlive(gaotaoSid)) && !isBusy(gaotaoSid)) {
     idleSessions.gaotao.push({ session_id: gaotaoSid, idle_seconds: getSessionIdle(gaotaoSid).idleSeconds })
@@ -360,7 +479,11 @@ async function handleListIdle(
     idleSessions.lizhu.push({ session_id: lizhuSid, idle_seconds: getSessionIdle(lizhuSid).idleSeconds })
   }
 
-  const total = idleSessions.gaotao.length + idleSessions.limu.length + idleSessions.lizhu.length
+  if (kuiSid && (await isAlive(kuiSid)) && !isBusy(kuiSid)) {
+    idleSessions.kui.push({ session_id: kuiSid, idle_seconds: getSessionIdle(kuiSid).idleSeconds })
+  }
+
+  const total = idleSessions.gaotao.length + idleSessions.limu.length + idleSessions.lizhu.length + idleSessions.kui.length
   return {
     title: `共 ${total} 个空闲会话`,
     output: JSON.stringify({ status: 'ok', idle_sessions: idleSessions }),

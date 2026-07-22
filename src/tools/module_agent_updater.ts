@@ -7,6 +7,7 @@ import {
   updaterDefinitionSchema,
   updaterHistorySchema,
   updaterMoveSchema,
+  updaterUpdateKuiPlanSchema,
   moduleAgentDir,
   CHANGE_HISTORY_FILE,
 } from '../lib/constants.ts'
@@ -15,6 +16,9 @@ import { updateSpecSection } from '../lib/module_spec.ts'
 import { modifyDefinition, readModuleDefinition, writeModuleDefinition } from '../lib/module_definition.ts'
 import { exists, readText, writeText } from '../lib/fs.ts'
 import { limuPlanGuard } from '../lib/limu_plan_guard.ts'
+import { readKuiPlan, writeKuiPlan } from '../lib/kui_plan.ts'
+import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
+import { getKuiStarter } from '../lib/module_session_tracker.ts'
 
 export const moduleAgentUpdater = tool({
   description: `
@@ -23,9 +27,10 @@ export const moduleAgentUpdater = tool({
 - update_spec： 增/改 current_spec.md 中指定 heading 下的内容
 - update_definition： 增/删/改 module_definition.json 中的文件条目
 - move_definition： 将文件定义从一个模块移动到另一个模块，并在双方追加日志
-- append_history： 向 change_history.log 追加变更记录`,
+- append_history： 向 change_history.log 追加变更记录
+- update_kui_plan： 更新夔计划的状态和结果（仅供夔调用）`,
   args: {
-    action: tool.schema.enum(['update_spec', 'update_definition', 'move_definition', 'append_history']).describe('操作类型'),
+    action: tool.schema.enum(['update_spec', 'update_definition', 'move_definition', 'append_history', 'update_kui_plan']).describe('操作类型'),
     module_name: tool.schema.string().optional().describe('模块唯一标识名称'),
     heading: tool.schema.string().optional().describe('update_spec：要修改的二级标题名（不含 ## 前缀）'),
     content: tool.schema.string().optional().describe('update_spec：该 section 的新增内容'),
@@ -40,6 +45,9 @@ export const moduleAgentUpdater = tool({
     target_module_name: tool.schema.string().optional().describe('move_definition：目标模块名称'),
     paths: tool.schema.array(tool.schema.string()).optional().describe('move_definition：要移动的文件路径列表'),
     entry: tool.schema.string().optional().describe('append_history：变更描述'),
+    kui_plan_id: tool.schema.string().optional().describe('update_kui_plan：夔计划 ID（从 read_kui_plan 返回的计划中获取）'),
+    status: tool.schema.enum(['pending', 'running', 'completed']).optional().describe('update_kui_plan：夔计划状态'),
+    result: tool.schema.string().optional().describe('update_kui_plan：夔计划执行结果'),
   },
   async execute(args, context): Promise<ToolResult> {
     const directory = context.directory
@@ -48,6 +56,17 @@ export const moduleAgentUpdater = tool({
 
     const fengzhouAllowed = ['update_definition', 'move_definition', 'update_spec']
     const lishouAllowed = ['update_spec']
+    const kuiAllowed = ['update_kui_plan']
+
+    if (action === 'update_kui_plan') {
+      if (mode !== 'kui') {
+        return {
+          title: '权限不足',
+          output: JSON.stringify({ status: 'error', error: 'module_agent_updater action="update_kui_plan" 仅供夔调用。' }),
+        }
+      }
+      return handleUpdateKuiPlan(directory, context.sessionID, args)
+    }
 
     if (mode === 'fengzhou' && !fengzhouAllowed.includes(action)) {
       return {
@@ -159,4 +178,40 @@ async function handleAppendHistory(directory: string, args: any): Promise<ToolRe
   await ensureModule(directory, module_name)
   await doAppendHistory(directory, module_name, session_id, entry)
   return { title: `已追加 ${module_name} 变更记录`, output: JSON.stringify({ action: 'append_history', status: 'ok', entry }) }
+}
+
+async function handleUpdateKuiPlan(directory: string, sessionId: string, args: any): Promise<ToolResult> {
+  const validate = updaterUpdateKuiPlanSchema.safeParse(args)
+  if (!validate.success) return { title: '参数错误', output: JSON.stringify({ status: 'error', error: validate.error.message }) }
+  const { kui_plan_id, status, result } = validate.data
+
+  if (!status && result === undefined) {
+    return { title: '参数错误', output: JSON.stringify({ status: 'error', error: 'update_kui_plan 需至少提供 status 或 result' }) }
+  }
+
+  const boundWs = await resolveWorkspace(directory, sessionId)
+  if (!boundWs) {
+    return { title: '未绑定工作空间', output: JSON.stringify({ status: 'error', error: '未绑定工作空间' }) }
+  }
+  const wsDir = getWorkspaceDir(directory, boundWs)
+
+  const fengzhouSessionId = await getKuiStarter(wsDir, sessionId)
+  if (!fengzhouSessionId) {
+    return { title: '未绑定风后', output: JSON.stringify({ status: 'error', error: '夔未绑定到风后' }) }
+  }
+
+  const plan = await readKuiPlan(wsDir, fengzhouSessionId, kui_plan_id)
+  if (!plan) {
+    return { title: '夔计划不存在', output: JSON.stringify({ status: 'error', error: `夔计划 ${kui_plan_id} 不存在` }) }
+  }
+
+  if (status) plan.status = status
+  if (result !== undefined) plan.result = result
+
+  await writeKuiPlan(wsDir, fengzhouSessionId, plan)
+
+  return {
+    title: `夔计划 ${kui_plan_id} 已更新`,
+    output: JSON.stringify({ action: 'update_kui_plan', status: 'ok', kui_plan_id }),
+  }
 }

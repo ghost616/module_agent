@@ -2,7 +2,7 @@ import { mkdir, rm } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import type { OpencodeClient } from '@opencode-ai/sdk'
 import { clearAgentMode } from './session_state.ts'
-import { isWorking } from './limu_monitor.ts'
+import { isWorking, getSessionIdle } from './limu_monitor.ts'
 import { exists, readJson, writeText } from './fs.ts'
 
 function filePath(workspaceDir: string): string {
@@ -59,6 +59,8 @@ export async function getModuleLimuSession(
         continue
       }
       if (isWorking(sid)) continue
+      const boundLizhu = await getBoundLizhu(workspaceDir, sid)
+      if (boundLizhu && isWorking(boundLizhu)) continue
       return sid
     } catch {
       await removeModuleSession(workspaceDir, moduleName, sid)
@@ -114,6 +116,7 @@ interface SessionBindings {
   limu: Record<string, string>
   lizhu: Record<string, string>
   lizhu_fengzhou: Record<string, string>
+  kui: Record<string, string>
 }
 
 const LEGACY_FILES: Array<{ key: keyof SessionBindings; file: string }> = [
@@ -130,10 +133,10 @@ async function readBindings(workspaceDir: string): Promise<SessionBindings> {
   const path = bindingsPath(workspaceDir)
   if (await exists(path)) {
     const data = await readJson<Partial<SessionBindings>>(path)
-    return { gaotao: data.gaotao ?? {}, limu: data.limu ?? {}, lizhu: data.lizhu ?? {}, lizhu_fengzhou: data.lizhu_fengzhou ?? {} }
+    return { gaotao: data.gaotao ?? {}, limu: data.limu ?? {}, lizhu: data.lizhu ?? {}, lizhu_fengzhou: data.lizhu_fengzhou ?? {}, kui: data.kui ?? {} }
   }
 
-  const bindings: SessionBindings = { gaotao: {}, limu: {}, lizhu: {}, lizhu_fengzhou: {} }
+  const bindings: SessionBindings = { gaotao: {}, limu: {}, lizhu: {}, lizhu_fengzhou: {}, kui: {} }
   for (const { key, file } of LEGACY_FILES) {
     const legacyPath = join(workspaceDir, file)
     if (await exists(legacyPath)) {
@@ -271,8 +274,18 @@ export async function getLimuStarter(workspaceDir: string, limuSessionId: string
 
 export async function getFengzhouLimuSessions(workspaceDir: string, fengzhouSessionId: string): Promise<string[]> {
   const data = await readBindings(workspaceDir)
+  const starters = new Set([fengzhouSessionId])
+  const kuiSid = data.kui[fengzhouSessionId]
+  if (kuiSid) starters.add(kuiSid)
   return Object.entries(data.limu)
-    .filter(([, fsid]) => fsid === fengzhouSessionId)
+    .filter(([, fsid]) => starters.has(fsid))
+    .map(([lsid]) => lsid)
+}
+
+export async function getLimuSessionsByStarter(workspaceDir: string, starterSessionId: string): Promise<string[]> {
+  const data = await readBindings(workspaceDir)
+  return Object.entries(data.limu)
+    .filter(([, fsid]) => fsid === starterSessionId)
     .map(([lsid]) => lsid)
 }
 
@@ -356,18 +369,21 @@ export async function getLizhuFengzhou(workspaceDir: string, lizhuSessionId: str
 export async function getFengzhouLizhuSessions(workspaceDir: string, fengzhouSessionId: string): Promise<string[]> {
   const data = await readBindings(workspaceDir)
   const result = new Set<string>()
+  const kuiSid = data.kui[fengzhouSessionId]
+  const starterIds = [fengzhouSessionId]
+  if (kuiSid) starterIds.push(kuiSid)
 
   const direct = data.lizhu[fengzhouSessionId]
   if (direct) result.add(direct)
 
   for (const [limuSid, fsid] of Object.entries(data.limu)) {
-    if (fsid !== fengzhouSessionId) continue
+    if (!starterIds.includes(fsid)) continue
     const lizhuSid = data.lizhu[limuSid]
     if (lizhuSid) result.add(lizhuSid)
   }
 
   for (const [lizhuSid, fsid] of Object.entries(data.lizhu_fengzhou)) {
-    if (fsid === fengzhouSessionId) result.add(lizhuSid)
+    if (starterIds.includes(fsid)) result.add(lizhuSid)
   }
 
   return [...result]
@@ -475,4 +491,114 @@ export async function cleanStaleLizhuMap(
   }
   if (removed > 0) await writeBindings(workspaceDir, data)
   return removed
+}
+
+// ============================================================
+// 风后 ↔ 夔 会话绑定（在 workspace 内）
+// ============================================================
+
+export async function bindKui(workspaceDir: string, fengzhouSessionId: string, kuiSessionId: string): Promise<void> {
+  const data = await readBindings(workspaceDir)
+  data.kui[fengzhouSessionId] = kuiSessionId
+  await writeBindings(workspaceDir, data)
+}
+
+export async function unbindKui(workspaceDir: string, fengzhouSessionId: string): Promise<void> {
+  const data = await readBindings(workspaceDir)
+  if (!(fengzhouSessionId in data.kui)) return
+  delete data.kui[fengzhouSessionId]
+  await writeBindings(workspaceDir, data)
+}
+
+export async function getBoundKui(workspaceDir: string, fengzhouSessionId: string, client: OpencodeClient): Promise<string | null> {
+  const data = await readBindings(workspaceDir)
+  const sid = data.kui[fengzhouSessionId]
+  if (!sid) return null
+
+  try {
+    const sessionResult = await client.session.get({ path: { id: sid } })
+    if (!sessionResult || sessionResult.error) {
+      delete data.kui[fengzhouSessionId]
+      await writeBindings(workspaceDir, data)
+      clearAgentMode(workspaceDir, sid)
+      return null
+    }
+    return sid
+  } catch {
+    delete data.kui[fengzhouSessionId]
+    await writeBindings(workspaceDir, data)
+    clearAgentMode(workspaceDir, sid)
+    return null
+  }
+}
+
+export async function getKuiStarter(workspaceDir: string, kuiSessionId: string): Promise<string | null> {
+  const data = await readBindings(workspaceDir)
+  for (const [fsid, ksid] of Object.entries(data.kui)) {
+    if (ksid === kuiSessionId) return fsid
+  }
+  return null
+}
+
+export async function isKuiBoundToFengzhou(
+  workspaceDir: string,
+  fengzhouSessionId: string,
+  kuiSessionId: string,
+): Promise<boolean> {
+  const data = await readBindings(workspaceDir)
+  return data.kui[fengzhouSessionId] === kuiSessionId
+}
+
+export async function cleanStaleKuiMap(
+  workspaceDir: string,
+  isAlive: (sessionId: string) => Promise<boolean>,
+): Promise<number> {
+  const data = await readBindings(workspaceDir)
+  let removed = 0
+  for (const [fsid, ksid] of Object.entries(data.kui)) {
+    if (!(await isAlive(fsid)) || !(await isAlive(ksid))) {
+      delete data.kui[fsid]
+      removed++
+    }
+  }
+  if (removed > 0) await writeBindings(workspaceDir, data)
+  return removed
+}
+
+export interface KuiSubAgentsStatus {
+  allIdle: boolean
+  runningAgents: string[]
+}
+
+export async function getKuiSubAgentsStatus(
+  workspaceDir: string,
+  kuiSessionId: string,
+  client: OpencodeClient,
+): Promise<KuiSubAgentsStatus> {
+  const runningAgents: string[] = []
+
+  const gaotaoSid = await getBoundGaotao(workspaceDir, kuiSessionId, client)
+  if (gaotaoSid) {
+    const gaotaoIdle = getSessionIdle(gaotaoSid)
+    if (gaotaoIdle.lastActivity) {
+      runningAgents.push('皋陶')
+    }
+  }
+
+  const limuSids = await getLimuSessionsByStarter(workspaceDir, kuiSessionId)
+  for (const limuSid of limuSids) {
+    const limuIdle = getSessionIdle(limuSid)
+    if (limuIdle.lastActivity) {
+      runningAgents.push('力牧')
+    }
+    const lizhuSid = await getBoundLizhu(workspaceDir, limuSid)
+    if (lizhuSid) {
+      const lizhuIdle = getSessionIdle(lizhuSid)
+      if (lizhuIdle.lastActivity) {
+        runningAgents.push('离朱')
+      }
+    }
+  }
+
+  return { allIdle: runningAgents.length === 0, runningAgents }
 }

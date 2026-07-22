@@ -1,12 +1,12 @@
 import { tool } from '@opencode-ai/plugin'
 import type { ToolResult } from '@opencode-ai/plugin'
 import type { OpencodeClient } from '@opencode-ai/sdk'
-import { executorStartSchema, executorStatusSchema } from '../lib/constants.ts'
+import { executorStartSchema, executorStatusSchema, executorStartKuiSchema } from '../lib/constants.ts'
 import { getAgentMode, setAgentMode } from '../lib/session_state.ts'
-import { validateConfirmationCode, CODE_CONSUMED_NOTICE, getPlanConfirmation, consumePlanConfirmation } from './verification_code.ts'
+import { validateConfirmationCode, CODE_CONSUMED_NOTICE, getPlanConfirmation, consumePlanConfirmation, generateId } from './verification_code.ts'
 import { recordActivity, getSessionIdle } from '../lib/limu_monitor.ts'
 import { isWorking } from '../lib/limu_monitor.ts'
-import { getModuleLimuSession, addModuleSession, markSessionChecked, clearSessionChecked, getBoundGaotao, bindGaotao, getBoundLizhu, bindLizhu, getAvailableLizhuSession, getAllUnboundLizhuSessions, addLizhuSession, bindLimuStarter, getLimuStarter, bindLizhuFengzhou } from '../lib/module_session_tracker.ts'
+import { getModuleLimuSession, addModuleSession, markSessionChecked, clearSessionChecked, getBoundGaotao, bindGaotao, getBoundLizhu, bindLizhu, getAvailableLizhuSession, getAllUnboundLizhuSessions, addLizhuSession, bindLimuStarter, getLimuStarter, bindLizhuFengzhou, bindKui, getBoundKui, getKuiSubAgentsStatus } from '../lib/module_session_tracker.ts'
 import { findModule } from '../lib/module_tree.ts'
 import { readAgentProfile } from '../lib/agent_profile.ts'
 import { readCodeConventions } from '../lib/code_conventions.ts'
@@ -21,32 +21,40 @@ import { getFirstPendingReview, readAllMetadata } from '../lib/development_plan.
 import { recordMapping, getPlanIdBySession } from '../lib/session_plan_map.ts'
 import { REVIEWER_RULES } from '../lib/reviewer_rules.ts'
 import { LIZHU_RULES } from '../lib/lizhu_rules.ts'
+import { KUI_RULES } from '../lib/kui_rules.ts'
 import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
 import { setSessionWorkspace } from '../lib/session_workspace.ts'
 import { readAgentModelConfig, validateModelConfig } from '../lib/agent_model_config.ts'
+import { writeKuiPlan, hasUncompletedKuiPlan, getCompletedKuiPlans, deleteCompletedKuiPlans } from '../lib/kui_plan.ts'
 
 export function createModuleAgentExecutor(client: OpencodeClient) {
   return tool({
-    description: '启动力牧会话或查询执行状态。用于分配开发计划给力牧并追踪执行结果。',
+    description: '启动力牧会话或查询执行状态。用于分配开发计划给力牧并追踪执行结果。支持启动夔智能体进行批量计划编排。',
     args: {
-      action: tool.schema.enum(['start', 'status', 'ping', 'start_review', 'review_status', 'check_reviewer', 'start_lizhu', 'list_unbound_lizhu']).describe('操作类型：start 启动执行，status 查询力牧状态，ping 二次检查提醒力牧写入执行总结，start_review 启动皋陶代码审查，review_status 查询皋陶审查结果，check_reviewer 检查皋陶是否空闲，start_lizhu 启动离朱测试，list_unbound_lizhu 获取当前工作空间中所有未绑定的离朱会话 ID'),
+       action: tool.schema.enum(['start', 'status', 'ping', 'start_review', 'review_status', 'check_reviewer', 'kui_status', 'start_lizhu', 'list_unbound_lizhu', 'start_kui']).describe('操作类型：start 启动执行，status 查询力牧状态，ping 二次检查提醒力牧写入执行总结，start_review 启动皋陶代码审查，review_status 查询皋陶审查结果，check_reviewer 检查皋陶是否空闲，kui_status 查询夔状态并获取已完成的夔计划（获取后自动删除，仅供风后），start_lizhu 启动离朱测试，list_unbound_lizhu 获取当前工作空间中所有未绑定的离朱会话 ID，start_kui 启动夔批量编排智能体'),
       module_name: tool.schema.string().optional().describe('模块唯一标识名称（action=start/status 时必填）'),
       development_plan: tool.schema.string().optional().describe('开发计划文本（action=start 时必填）'),
       plan_id: tool.schema.string().optional().describe('计划 ID，由 module_agent_plan(action="confirm_plan") 返回（action=start 时必填）'),
       plan_summary: tool.schema.string().optional().describe('计划简要说明（action=start 时必填）'),
       session_id: tool.schema.string().optional().describe('会话 ID（action=status 时必填）'),
       code_conventions: tool.schema.string().optional().describe('风后传入的代码规范，若代码规范文件为空时必须传入，文件不为空则无需传入'),
+      plans: tool.schema.array(
+        tool.schema.object({
+          module_name: tool.schema.string(),
+          development_plan: tool.schema.string(),
+        })
+      ).optional().describe('批量计划列表（action=start_kui 时必填）'),
     },
     async execute(args, context): Promise<ToolResult> {
       const mode = getAgentMode(context.directory, context.sessionID)
       const action = args.action as string
       const lizhuActions = ['start_lizhu']
 
-      if (action === 'list_unbound_lizhu') {
+      if (action === 'list_unbound_lizhu' || action === 'kui_status') {
         if (mode !== 'fengzhou') {
           return {
             title: '权限不足',
-            output: JSON.stringify({ status: 'error', error: 'module_agent_executor action="list_unbound_lizhu" 仅供风后调用。' }),
+            output: JSON.stringify({ status: 'error', error: `module_agent_executor action="${action}" 仅供风后调用。` }),
           }
         }
       } else if (lizhuActions.includes(action)) {
@@ -56,10 +64,10 @@ export function createModuleAgentExecutor(client: OpencodeClient) {
             output: JSON.stringify({ status: 'error', error: `module_agent_executor action="${action}" 仅供风后或力牧调用。` }),
           }
         }
-      } else if (mode !== 'fengzhou') {
+      } else if (mode !== 'fengzhou' && mode !== 'kui') {
         return {
           title: '权限不足',
-          output: JSON.stringify({ status: 'error', error: 'module_agent_executor 仅供风后调用。请先使用 module_agent_start 激活风后力牧模式。' }),
+          output: JSON.stringify({ status: 'error', error: 'module_agent_executor 仅供风后或夔调用。请先使用 module_agent_start 激活风后力牧模式。' }),
         }
       }
 
@@ -83,7 +91,7 @@ export function createModuleAgentExecutor(client: OpencodeClient) {
       }
 
       if (action === 'ping') {
-        return handlePing(client, directory, workspaceDir, args)
+        return handlePing(client, directory, workspaceDir, args, context.sessionID)
       }
 
       if (action === 'start_review') {
@@ -98,6 +106,10 @@ export function createModuleAgentExecutor(client: OpencodeClient) {
         return handleCheckReviewer(client, workspaceDir, context.sessionID)
       }
 
+      if (action === 'kui_status') {
+        return handleKuiStatus(client, directory, workspaceDir, context.sessionID)
+      }
+
       if (action === 'start_lizhu') {
         return handleStartLizhu(client, directory, workspaceDir, boundWs, args, context.sessionID, mode)
       }
@@ -108,6 +120,14 @@ export function createModuleAgentExecutor(client: OpencodeClient) {
           title: `共 ${sessions.length} 个未绑定的离朱`,
           output: JSON.stringify({ unbound_lizhu_sessions: sessions }),
         }
+      }
+
+      if (action === 'start_kui') {
+        const validate = executorStartKuiSchema.passthrough().safeParse(args)
+        if (!validate.success) {
+          return { title: '参数错误', output: JSON.stringify({ status: 'error', error: validate.error.message }) }
+        }
+        return handleStartKui(client, directory, workspaceDir, boundWs, validate.data, context.sessionID)
       }
 
       const validate = executorStatusSchema.passthrough().safeParse(args)
@@ -289,7 +309,7 @@ async function handleStart(
       development_plan,
       session_id: reusable,
       modified_files: [],
-    }, plan_summary)
+    }, plan_summary, sessionID)
 
     await recordMapping(workspaceDir, reusable, plan_id)
 
@@ -403,7 +423,7 @@ async function handleStart(
     development_plan,
     session_id: sessionId,
     modified_files: [],
-  }, plan_summary)
+  }, plan_summary, sessionID)
 
   await recordMapping(workspaceDir, sessionId, plan_id)
 
@@ -771,11 +791,84 @@ async function handleCheckReviewer(
   }
 }
 
+async function handleKuiStatus(
+  client: OpencodeClient,
+  directory: string,
+  workspaceDir: string,
+  fengzhouSessionId: string,
+): Promise<ToolResult> {
+  const kuiSid = await getBoundKui(workspaceDir, fengzhouSessionId, client)
+  if (!kuiSid) {
+    return {
+      title: '夔未创建',
+      output: JSON.stringify({ bound: false, message: '夔未创建，可调用 start_kui 启动' }),
+    }
+  }
+
+  const kuiIdle = getSessionIdle(kuiSid)
+  if (kuiIdle.lastActivity && !kuiIdle.unresponsive) {
+    return {
+      title: '夔忙碌',
+      output: JSON.stringify({ bound: true, idle: false, message: '夔正在工作中' }),
+    }
+  }
+
+  if (kuiIdle.lastActivity && kuiIdle.unresponsive) {
+    return {
+      title: '夔无响应',
+      output: JSON.stringify({ bound: true, idle: false, unresponsive: true, message: '夔空闲超过5分钟，无响应' }),
+    }
+  }
+
+  const subStatus = await getKuiSubAgentsStatus(workspaceDir, kuiSid, client)
+
+  if (!subStatus.allIdle) {
+    return {
+      title: '夔空闲但有子智能体在运行',
+      output: JSON.stringify({
+        bound: true,
+        idle: true,
+        running_sub_agents: subStatus.runningAgents,
+        message: `夔空闲，但有以下子智能体仍在运行：${subStatus.runningAgents.join('、')}`,
+      }),
+    }
+  }
+
+  const hasUncompleted = await hasUncompletedKuiPlan(workspaceDir, fengzhouSessionId)
+  const completedPlans = await getCompletedKuiPlans(workspaceDir, fengzhouSessionId)
+
+  const output: any = {
+    bound: true,
+    idle: true,
+    all_idle: true,
+    completed_plans: completedPlans.length > 0 ? completedPlans.map(p => ({
+      kui_plan_id: p.kui_plan_id,
+      result: p.result,
+    })) : [],
+  }
+
+  if (completedPlans.length > 0) {
+    await deleteCompletedKuiPlans(workspaceDir, fengzhouSessionId)
+    output.message = `夔及所有子智能体均已空闲，已获取 ${completedPlans.length} 个已完成的夔计划（已清理）。`
+  } else if (hasUncompleted) {
+    output.unresponsive = true
+    output.message = '夔及所有子智能体均已空闲，但存在未完成的夔计划，请调用 ping 提醒夔。'
+  } else {
+    output.message = '夔及所有子智能体均已空闲，无夔计划。'
+  }
+
+  return {
+    title: completedPlans.length > 0 ? `夔已完成，${completedPlans.length} 个计划` : '夔及子智能体均已空闲',
+    output: JSON.stringify(output),
+  }
+}
+
 async function handlePing(
   client: OpencodeClient,
   directory: string,
   workspaceDir: string,
   args: any,
+  callerSessionId?: string,
 ): Promise<ToolResult> {
   const sessionId = args.session_id as string | undefined
 
@@ -792,6 +885,8 @@ async function handlePing(
   }
 
   const targetMode = getAgentMode(directory, sessionId)
+  const callerMode = callerSessionId ? getAgentMode(directory, callerSessionId) : undefined
+  const prefix = callerMode === 'kui' ? '夔提醒' : '风后提醒'
 
   const idleInfo = getSessionIdle(sessionId)
   if (!idleInfo.unresponsive) {
@@ -825,7 +920,7 @@ async function handlePing(
     await client.session.promptAsync({
       path: { id: sessionId },
       body: {
-        parts: [{ type: 'text', text: '风后提醒：请尽快完成审查并通过 module_agent_updater_review(action="write_review", plan_id="xxx", review_summary="审查总结", review_issues=[...], review_approved=true|false) 写入审查结果，然后调用 module_agent_plan(action="review_complete", plan_id="xxx") 标记完成，再通过 module_agent_plan(action="get_pending_review") 获取下一个待审查计划。' }],
+        parts: [{ type: 'text', text: `${prefix}：请尽快完成审查并通过 module_agent_updater_review(action="write_review", plan_id="xxx", review_summary="审查总结", review_issues=[...], review_approved=true|false) 写入审查结果，然后调用 module_agent_plan(action="review_complete", plan_id="xxx") 标记完成，再通过 module_agent_plan(action="get_pending_review") 获取下一个待审查计划。` }],
       },
     })
 
@@ -841,7 +936,7 @@ async function handlePing(
     await client.session.promptAsync({
       path: { id: sessionId },
       body: {
-        parts: [{ type: 'text', text: '风后提醒：请尽快完成测试并通过 module_agent_testing(action="write_report", content="...") 生成测试报告。' }],
+        parts: [{ type: 'text', text: `${prefix}：请尽快完成测试并通过 module_agent_testing(action="write_report", content="...") 生成测试报告。` }],
       },
     })
     recordActivity(sessionId)
@@ -851,10 +946,25 @@ async function handlePing(
     }
   }
 
+  if (targetMode === 'kui') {
+    await client.session.promptAsync({
+      path: { id: sessionId },
+      body: {
+        parts: [{ type: 'text', text: `${prefix}：请先调用 module_agent_reader(action="read_all_kui_plans") 获取所有夔计划的状态，优先执行 status="running" 的夔计划。如果没有 status 为 pending 或 running 的夔计划，则结束会话。` }],
+      },
+    })
+    recordActivity(sessionId)
+    await markSessionChecked(workspaceDir, sessionId)
+    return {
+      title: '已提醒夔',
+      output: JSON.stringify({ status: 'ok', message: `已向夔会话 ${sessionId} 发送提醒。` }),
+    }
+  }
+
   await client.session.promptAsync({
     path: { id: sessionId },
     body: {
-      parts: [{ type: 'text', text: '风后提醒：请尽快完成当前任务并写入执行总结 module_agent_updater_plan(action="write_result", summary="执行总结")。如果没有测试，请先判断是否需要测试，再调用 module_agent_plan(action="plan_complete", files=["..."])。' }],
+      parts: [{ type: 'text', text: `${prefix}：请尽快完成当前任务并写入执行总结 module_agent_updater_plan(action="write_result", summary="执行总结")。如果没有测试，请先判断是否需要测试，再调用 module_agent_plan(action="plan_complete", files=["..."])。` }],
     },
   })
 
@@ -1003,5 +1113,139 @@ async function handleStartLizhu(
   return {
     title: '离朱测试已启动',
     output: JSON.stringify({ lizhu_session_id: lizhuSessionId }),
+  }
+}
+
+function buildKuiSystem(): string {
+  return KUI_RULES
+}
+
+async function handleStartKui(
+  client: OpencodeClient,
+  directory: string,
+  workspaceDir: string,
+  workspaceName: string,
+  args: { plans: Array<{ module_name: string; development_plan: string }> },
+  fengzhouSessionId: string,
+): Promise<ToolResult> {
+  const { plans } = args
+
+  if (!plans || plans.length === 0) {
+    return {
+      title: '参数错误',
+      output: JSON.stringify({ status: 'error', error: 'plans 不能为空' }),
+    }
+  }
+
+  const kui_plan_id = generateId('kui_plan')
+
+  const modelConfig = await readAgentModelConfig(workspaceDir)
+
+  const boundKui = await getBoundKui(workspaceDir, fengzhouSessionId, client)
+  if (boundKui) {
+    await writeKuiPlan(workspaceDir, fengzhouSessionId, {
+      kui_plan_id,
+      plans,
+      status: 'pending',
+      result: '',
+    })
+
+    await client.session.promptAsync({
+      path: { id: boundKui },
+      body: {
+        parts: [{ type: 'text', text: '有新夔计划写入，请调用 module_agent_reader(action="read_kui_plan") 读取计划并执行。' }],
+      },
+    })
+
+    recordActivity(boundKui)
+
+    return {
+      title: '夔计划已写入，通知已有夔',
+      output: JSON.stringify({ kui_session_id: boundKui, kui_plan_id, reused: true, notice: CODE_CONSUMED_NOTICE }),
+    }
+  }
+
+  if (!modelConfig?.kui) {
+    return {
+      title: '未配置夔模型',
+      output: JSON.stringify({ status: 'error', error: '请先使用 agent_model_config(action="set", kui_provider_id="...", kui_model_id="...") 为当前工作空间设置夔默认模型' }),
+    }
+  }
+
+  const kuiValidation = await validateModelConfig(client, modelConfig)
+  const kuiError = kuiValidation.find(e => e.agent === 'kui')
+  if (kuiError) {
+    return {
+      title: '夔模型配置失效',
+      output: JSON.stringify({ status: 'error', error: kuiError.error, hint: '配置的模型可能在当前环境中不可用，请使用 agent_model_config(action="get") 查看当前配置，再通过 agent_model_config(action="set", ...) 重新设置' }),
+    }
+  }
+
+  // 创建 KuiPlan 对象并写入文件
+  await writeKuiPlan(workspaceDir, fengzhouSessionId, {
+    kui_plan_id,
+    plans,
+    status: 'pending',
+    result: '',
+  })
+
+  const sessionResult = await client.session.create({
+    body: { title: 'kui' },
+  })
+
+  if (sessionResult.error) {
+    return {
+      title: '会话创建失败',
+      output: JSON.stringify({ status: 'error', error: `创建夔会话失败: ${JSON.stringify(sessionResult.error)}` }),
+    }
+  }
+
+  const kuiSessionId = sessionResult.data.id
+  const title = `kui—${kuiSessionId.slice(0, 8)}`
+
+  await client.session.update({
+    path: { id: kuiSessionId },
+    body: { title },
+  })
+
+  setAgentMode(directory, kuiSessionId, 'kui')
+  await bindKui(workspaceDir, fengzhouSessionId, kuiSessionId)
+
+  const systemPrompt = buildKuiSystem()
+
+  const promptText = '请调用 module_agent_reader(action="read_kui_plan") 读取夔计划并执行。'
+
+  const promptResult = await client.session.promptAsync({
+    path: { id: kuiSessionId },
+    body: {
+      ...(modelConfig?.kui ? { model: modelConfig.kui } : {}),
+      system: systemPrompt,
+      parts: [{ type: 'text', text: promptText }],
+    },
+  })
+
+  if (promptResult.error) {
+    return {
+      title: '启动夔失败',
+      output: JSON.stringify({ status: 'error', error: `启动夔失败: ${JSON.stringify(promptResult.error)}`, kui_session_id: kuiSessionId }),
+    }
+  }
+
+  recordActivity(kuiSessionId)
+
+  await setSessionWorkspace(directory, kuiSessionId, workspaceName)
+
+  await client.app.log({
+    body: {
+      service: 'module-agent-plugin',
+      level: 'info',
+      message: `Started kui session ${kuiSessionId} for kui plan ${kui_plan_id}`,
+      extra: { kui_session_id: kuiSessionId, kui_plan_id, starter: fengzhouSessionId },
+    },
+  })
+
+  return {
+    title: '夔批量编排已启动',
+    output: JSON.stringify({ kui_session_id: kuiSessionId, kui_plan_id, plan_count: plans.length, notice: CODE_CONSUMED_NOTICE }),
   }
 }

@@ -7,7 +7,7 @@ import { readAgentModelConfig, writeAgentModelConfig, validateModelConfig } from
 
 export function createAgentModelConfig(client: OpencodeClient) {
   return tool({
-    description: '管理当前工作空间中力牧、皋陶和离朱的默认模型配置。仅风后可调用，需已绑定工作空间。',
+    description: '管理当前工作空间中力牧、皋陶、离朱和夔的默认模型配置。仅风后可调用，需已绑定工作空间。',
     args: {
       action: tool.schema.enum(['get', 'set']).describe('get=查看当前配置，set=设置默认模型'),
       limu_provider_id: tool.schema.string().optional().describe('力牧使用的模型提供方 ID（action=set 时使用）'),
@@ -16,6 +16,8 @@ export function createAgentModelConfig(client: OpencodeClient) {
       gaotao_model_id: tool.schema.string().optional().describe('皋陶使用的模型 ID（action=set 时使用）'),
       lizhu_provider_id: tool.schema.string().optional().describe('离朱使用的模型提供方 ID（action=set 时使用）'),
       lizhu_model_id: tool.schema.string().optional().describe('离朱使用的模型 ID（action=set 时使用）'),
+      kui_provider_id: tool.schema.string().optional().describe('夔使用的模型提供方 ID（action=set 时使用）'),
+      kui_model_id: tool.schema.string().optional().describe('夔使用的模型 ID（action=set 时使用）'),
     },
     async execute(args, context): Promise<ToolResult> {
       if (getAgentMode(context.directory, context.sessionID) !== 'fengzhou') {
@@ -56,14 +58,16 @@ export function createAgentModelConfig(client: OpencodeClient) {
           const gaotaoModelId = args.gaotao_model_id as string | undefined
           const lizhuProviderId = args.lizhu_provider_id as string | undefined
           const lizhuModelId = args.lizhu_model_id as string | undefined
+          const kuiProviderId = args.kui_provider_id as string | undefined
+          const kuiModelId = args.kui_model_id as string | undefined
 
           if (
             (!limuProviderId && !limuModelId && !gaotaoProviderId && !gaotaoModelId &&
-              !lizhuProviderId && !lizhuModelId)
+              !lizhuProviderId && !lizhuModelId && !kuiProviderId && !kuiModelId)
           ) {
             return {
               title: '参数不足',
-              output: JSON.stringify({ status: 'error', error: 'set 至少需要设置 limu、gaotao 或 lizhu 的模型参数' }),
+              output: JSON.stringify({ status: 'error', error: 'set 至少需要设置 limu、gaotao、lizhu 或 kui 的模型参数' }),
             }
           }
 
@@ -98,6 +102,16 @@ export function createAgentModelConfig(client: OpencodeClient) {
               }
             }
             candidate.lizhu = { providerID: lizhuProviderId, modelID: lizhuModelId }
+          }
+
+          if (kuiProviderId || kuiModelId) {
+            if (!kuiProviderId || !kuiModelId) {
+              return {
+                title: '参数错误',
+                output: JSON.stringify({ status: 'error', error: '设置夔模型需同时提供 kui_provider_id 和 kui_model_id' }),
+              }
+            }
+            candidate.kui = { providerID: kuiProviderId, modelID: kuiModelId }
           }
 
           // 校验新设置的模型是否在已配置的 provider/model 列表中

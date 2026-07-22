@@ -18,7 +18,7 @@ import {
 import { readModuleDefinition } from '../lib/module_definition.ts'
 import { getPlanIdBySession, removeMappingByPlanId } from '../lib/session_plan_map.ts'
 import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
-import { getBoundLizhu, unbindLizhu } from '../lib/module_session_tracker.ts'
+import { getBoundLizhu, unbindLizhu, getGaotaoStarter } from '../lib/module_session_tracker.ts'
 import { limuPlanGuard } from '../lib/limu_plan_guard.ts'
 import { releasePlanFilesSession } from '../lib/plan_files.ts'
 import { exists } from '../lib/fs.ts'
@@ -191,7 +191,8 @@ export const moduleAgentPlan = tool({
     }
 
     if (action === 'get_pending_review') {
-      const plan = await getFirstPendingReview(wsDir)
+      const starterSid = await getGaotaoStarter(wsDir, context.sessionID)
+      const plan = await getFirstPendingReview(wsDir, starterSid ?? undefined)
       if (!plan) {
         return {
           title: '无待审查计划',
@@ -247,6 +248,7 @@ export const moduleAgentPlan = tool({
         resolvedFiles,
         review_description,
         plan_summary || review_description,
+        context.sessionID,
       )
 
       return {

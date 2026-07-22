@@ -12,10 +12,11 @@ export interface AgentModelConfig {
   limu?: AgentModelEntry
   gaotao?: AgentModelEntry
   lizhu?: AgentModelEntry
+  kui?: AgentModelEntry
 }
 
 export interface ModelValidationError {
-  agent: 'limu' | 'gaotao' | 'lizhu'
+  agent: 'limu' | 'gaotao' | 'lizhu' | 'kui'
   error: string
 }
 
@@ -51,10 +52,11 @@ export async function validateModelConfig(
   const providers = result.data.providers
   const errors: ModelValidationError[] = []
 
-  const agents: Array<{ key: 'limu' | 'gaotao' | 'lizhu'; entry: AgentModelEntry | undefined; label: string }> = [
+  const agents: Array<{ key: 'limu' | 'gaotao' | 'lizhu' | 'kui'; entry: AgentModelEntry | undefined; label: string }> = [
     { key: 'limu', entry: config.limu, label: '力牧' },
     { key: 'gaotao', entry: config.gaotao, label: '皋陶' },
     { key: 'lizhu', entry: config.lizhu, label: '离朱' },
+    { key: 'kui', entry: config.kui, label: '夔' },
   ]
 
   for (const { key, entry, label } of agents) {

@@ -29,7 +29,7 @@ import { checkLimuPlanActive } from './lib/limu_plan_guard.ts'
 import { validateLimuBashCommand } from './lib/limu_bash_guard.ts'
 import { validateLizhuEnvCommand } from './lib/lizhu_env_guard.ts'
 import { resolveWorkspace, getWorkspaceDir } from './lib/workspace.ts'
-import { getBoundStarter, getBoundLizhu, getLimuStarter, getGaotaoStarter, getModuleNameBySession } from './lib/module_session_tracker.ts'
+import { getBoundStarter, getBoundLizhu, getLimuStarter, getGaotaoStarter, getKuiStarter, getModuleNameBySession, getKuiSubAgentsStatus } from './lib/module_session_tracker.ts'
 
 export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
   await ctx.client.app.log({
@@ -132,7 +132,7 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
       const mode = getAgentMode(ctx.directory, input.sessionID)
       const blockedTools = ['write', 'edit']
 
-      if ((mode === 'fengzhou' || mode === 'gaotao' || mode === 'lishou') && blockedTools.includes(input.tool)) {
+      if ((mode === 'fengzhou' || mode === 'gaotao' || mode === 'lishou' || mode === 'kui') && blockedTools.includes(input.tool)) {
         await ctx.client.app.log({
           body: {
             service: 'module-agent-plugin',
@@ -141,7 +141,7 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
             extra: { sessionID: input.sessionID, tool: input.tool, mode },
           },
         })
-        const agentName = { fengzhou: '风后', gaotao: '皋陶', lishou: '隶首' }[mode] ?? mode
+        const agentName = { fengzhou: '风后', gaotao: '皋陶', lishou: '隶首', kui: '夔' }[mode] ?? mode
         throw new Error(`${agentName}不直接修改代码文件。`)
       }
 
@@ -200,11 +200,56 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
           }
         }
       }
+
+      if (mode === 'kui') {
+        const allowed = new Set<string>([
+          'module_agent_executor',
+          'module_agent_reader',
+          'module_agent_updater',
+          'module_agent_plan',
+          'verification_code',
+          'read',
+          'grep',
+        ])
+        if (!allowed.has(input.tool)) {
+          throw new Error('夔仅允许使用 module_agent_executor、module_agent_reader、module_agent_updater、module_agent_plan、verification_code、read、grep 工具。')
+        }
+
+        if (input.tool === 'module_agent_executor') {
+          const action = String(output.args?.action ?? '')
+          const validActions = ['start', 'status', 'start_review', 'review_status', 'ping', 'check_reviewer']
+          if (!validActions.includes(action)) {
+            throw new Error(`夔仅允许 module_agent_executor 的 start、status、start_review、review_status、ping、check_reviewer 操作，当前: ${action}`)
+          }
+        }
+
+        if (input.tool === 'module_agent_reader') {
+          const action = String(output.args?.action ?? '')
+          const validActions = ['read_kui_plan', 'read_all_kui_plans', 'read_kui_plan_detail', 'read_plan_files', 'read_definition', 'read_descriptions']
+          if (!validActions.includes(action)) {
+            throw new Error(`夔仅允许 module_agent_reader 的 read_kui_plan、read_all_kui_plans、read_kui_plan_detail、read_plan_files、read_definition、read_descriptions 操作，当前: ${action}`)
+          }
+        }
+
+        if (input.tool === 'module_agent_updater') {
+          const action = String(output.args?.action ?? '')
+          if (action !== 'update_kui_plan') {
+            throw new Error(`夔仅允许 module_agent_updater 的 update_kui_plan 操作，当前: ${action}`)
+          }
+        }
+
+        if (input.tool === 'module_agent_plan') {
+          const action = String(output.args?.action ?? '')
+          if (action !== 'confirm_plan') {
+            throw new Error(`夔仅允许 module_agent_plan 的 confirm_plan 操作，当前: ${action}`)
+          }
+        }
+      }
     },
 
     'tool.execute.after': async (input, _output) => {
       const mode = getAgentMode(ctx.directory, input.sessionID)
-      if (mode === 'limu' || mode === 'gaotao' || mode === 'lizhu') {
+      if (mode === 'limu' || mode === 'gaotao' || mode === 'lizhu' || mode === 'kui') {
         recordActivity(input.sessionID)
       }
     },
@@ -212,7 +257,7 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
     'experimental.text.complete': async (input, _output) => {
       const sessionId = input.sessionID
       const mode = getAgentMode(ctx.directory, sessionId)
-      if (mode === 'limu' || mode === 'gaotao' || mode === 'lizhu') {
+      if (mode === 'limu' || mode === 'gaotao' || mode === 'lizhu' || mode === 'kui') {
         recordActivity(sessionId)
       }
     },
@@ -221,11 +266,11 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
       if (event.type === 'session.idle') {
         const sessionId = event.properties.sessionID
         const mode = getAgentMode(ctx.directory, sessionId)
-        if (mode === 'limu' || mode === 'gaotao' || mode === 'lizhu') {
+        if (mode === 'limu' || mode === 'gaotao' || mode === 'lizhu' || mode === 'kui') {
           clearActivity(sessionId)
         }
 
-        if (mode === 'limu' || mode === 'gaotao' || mode === 'lizhu') {
+        if (mode === 'limu' || mode === 'gaotao' || mode === 'lizhu' || mode === 'kui') {
           let workspaceDir = ''
           try {
             const ws = await resolveWorkspace(ctx.directory, sessionId)
@@ -264,7 +309,8 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
           if (workspaceDir && mode === 'limu') {
             try {
               const starter = await getLimuStarter(workspaceDir, sessionId)
-              if (starter && getAgentMode(ctx.directory, starter) === 'fengzhou') {
+              const starterMode = starter ? getAgentMode(ctx.directory, starter) : undefined
+              if (starter && (starterMode === 'fengzhou' || starterMode === 'kui')) {
                 const moduleName = await getModuleNameBySession(workspaceDir, sessionId)
                 await ctx.client.session.promptAsync({
                   path: { id: starter },
@@ -276,8 +322,8 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
                   body: {
                     service: 'module-agent-plugin',
                     level: 'info',
-                    message: `Notified fengzhou ${starter} about limu ${sessionId} completion`,
-                    extra: { starter, limu: sessionId },
+                    message: `Notified ${starterMode} ${starter} about limu ${sessionId} completion`,
+                    extra: { starter, starterMode, limu: sessionId },
                   },
                 })
               }
@@ -289,7 +335,8 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
           if (workspaceDir && mode === 'gaotao') {
             try {
               const starter = await getGaotaoStarter(workspaceDir, sessionId)
-              if (starter && getAgentMode(ctx.directory, starter) === 'fengzhou') {
+              const starterMode = starter ? getAgentMode(ctx.directory, starter) : undefined
+              if (starter && (starterMode === 'fengzhou' || starterMode === 'kui')) {
                 await ctx.client.session.promptAsync({
                   path: { id: starter },
                   body: {
@@ -300,10 +347,46 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
                   body: {
                     service: 'module-agent-plugin',
                     level: 'info',
-                    message: `Notified fengzhou ${starter} about gaotao ${sessionId} completion`,
-                    extra: { starter, gaotao: sessionId },
+                    message: `Notified ${starterMode} ${starter} about gaotao ${sessionId} completion`,
+                    extra: { starter, starterMode, gaotao: sessionId },
                   },
                 })
+              }
+            } catch {
+              // notification failed, ignore
+            }
+          }
+
+          if (workspaceDir && mode === 'kui') {
+            try {
+              const starter = await getKuiStarter(workspaceDir, sessionId)
+              if (starter && getAgentMode(ctx.directory, starter) === 'fengzhou') {
+                const subStatus = await getKuiSubAgentsStatus(workspaceDir, sessionId, ctx.client)
+                if (subStatus.allIdle) {
+                  await ctx.client.session.promptAsync({
+                    path: { id: starter },
+                    body: {
+                          parts: [{ type: 'text', text: `夔（会话 ${sessionId}）批量编排任务完成。请调用 module_agent_executor(action="kui_status") 获取执行情况。` }],
+                    },
+                  })
+                  await ctx.client.app.log({
+                    body: {
+                      service: 'module-agent-plugin',
+                      level: 'info',
+                      message: `Notified fengzhou ${starter} about kui ${sessionId} completion`,
+                      extra: { starter, kui: sessionId },
+                    },
+                  })
+                } else {
+                  await ctx.client.app.log({
+                    body: {
+                      service: 'module-agent-plugin',
+                      level: 'info',
+                      message: `Kui ${sessionId} idle but sub-agents still running: ${subStatus.runningAgents.join(', ')}`,
+                      extra: { kui: sessionId, runningAgents: subStatus.runningAgents },
+                    },
+                  })
+                }
               }
             } catch {
               // notification failed, ignore

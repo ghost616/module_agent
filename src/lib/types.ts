@@ -85,7 +85,12 @@ export interface ExecutorStatusArgs {
   session_id: string
 }
 
-export type ExecutorArgs = ExecutorStartArgs | ExecutorStatusArgs
+export interface ExecutorStartKuiArgs {
+  action: 'start_kui'
+  plans: Array<{ module_name: string; development_plan: string }>
+}
+
+export type ExecutorArgs = ExecutorStartArgs | ExecutorStatusArgs | ExecutorStartKuiArgs
 
 // ============================================================
 // Development Plan 结构
@@ -104,6 +109,22 @@ export interface PlanDetail {
   development_plan: string
   session_id: string
   modified_files: string[]
+}
+
+// ============================================================
+// Kui Plan 结构
+// ============================================================
+
+export interface KuiPlanEntry {
+  module_name: string
+  development_plan: string
+}
+
+export interface KuiPlan {
+  kui_plan_id: string
+  plans: KuiPlanEntry[]
+  status: 'pending' | 'running' | 'completed'
+  result: string
 }
 
 // ============================================================

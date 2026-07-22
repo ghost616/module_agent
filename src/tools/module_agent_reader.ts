@@ -9,26 +9,28 @@ import { readModuleDefinition, getModuleParentDirs } from '../lib/module_definit
 import { moduleAgentDir, CHANGE_HISTORY_FILE } from '../lib/constants.ts'
 import { exists, readText, readJson } from '../lib/fs.ts'
 import { readPlanFiles } from '../lib/plan_files.ts'
-import { getBoundLizhu, getBoundStarter, unbindLizhu } from '../lib/module_session_tracker.ts'
+import { getBoundLizhu, getBoundStarter, unbindLizhu, getKuiStarter } from '../lib/module_session_tracker.ts'
 import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
+import { readFirstPendingKuiPlan, readKuiPlan, readFengzhouPlans } from '../lib/kui_plan.ts'
 
 export const moduleAgentReader = tool({
   description: '读取模块元数据文件，供风后在评估变更、力牧在执行时使用，离朱读取测试说明和结果。',
   args: {
-    action: tool.schema.enum(['read_spec', 'read_spec_headings', 'read_spec_section', 'read_definition', 'read_descriptions', 'read_history', 'read_dirs', 'read_plan_files', 'read_test_results', 'read_test_specs', 'read_lizhu_results']).describe('读取目标文件：read_definition 获取模块文件路径列表，read_descriptions 按路径获取文件功能说明'),
-    module_name: tool.schema.string().optional().describe('模块唯一标识名称（read_test_results / read_test_specs 时无需传入）'),
+    action: tool.schema.enum(['read_spec', 'read_spec_headings', 'read_spec_section', 'read_definition', 'read_descriptions', 'read_history', 'read_dirs', 'read_plan_files', 'read_test_results', 'read_test_specs', 'read_lizhu_results', 'read_kui_plan', 'read_all_kui_plans', 'read_kui_plan_detail']).describe('读取目标文件：read_definition 获取模块文件路径列表，read_descriptions 按路径获取文件功能说明'),
+    module_name: tool.schema.string().optional().describe('模块唯一标识名称（read_test_results / read_test_specs / read_kui_plan / read_all_kui_plans / read_kui_plan_detail 时无需传入）'),
     paths: tool.schema.array(tool.schema.string()).optional().describe('read_descriptions：要查询说明的文件路径列表'),
     from: tool.schema.string().optional().describe('read_history：起始时间 ISO 8601（含）'),
     to: tool.schema.string().optional().describe('read_history：结束时间 ISO 8601（含）'),
     lizhu_session_id: tool.schema.string().optional().describe('read_test_results：离朱会话 ID（不传则读取调用者绑定的离朱结果）'),
+    kui_plan_id: tool.schema.string().optional().describe('read_kui_plan_detail：夔计划 ID'),
     heading: tool.schema.string().optional().describe('read_spec_section：要读取的 section 标题名（不含 ## 前缀）'),
   },
   async execute(args, context): Promise<ToolResult> {
     const mode = getAgentMode(context.directory, context.sessionID)
-    if (mode !== 'fengzhou' && mode !== 'limu' && mode !== 'gaotao' && mode !== 'lishou' && mode !== 'lizhu') {
+    if (mode !== 'fengzhou' && mode !== 'limu' && mode !== 'gaotao' && mode !== 'lishou' && mode !== 'lizhu' && mode !== 'kui') {
       return {
         title: '权限不足',
-        output: JSON.stringify({ status: 'error', error: 'module_agent_reader 仅供风后、力牧、皋陶、隶首或离朱调用。' }),
+        output: JSON.stringify({ status: 'error', error: 'module_agent_reader 仅供风后、力牧、皋陶、隶首、离朱或夔调用。' }),
       }
     }
 
@@ -47,9 +49,24 @@ export const moduleAgentReader = tool({
       }
     }
 
+    const kuiActions = ['read_kui_plan', 'read_all_kui_plans', 'read_kui_plan_detail']
+    const fengzhouKuiActions = ['read_all_kui_plans', 'read_kui_plan_detail']
+    if (kuiActions.includes(action) && mode !== 'kui') {
+      if (mode !== 'fengzhou' || !fengzhouKuiActions.includes(action)) {
+        return {
+          title: '权限不足',
+          output: JSON.stringify({ status: 'error', error: `module_agent_reader action="${action}" 仅供夔调用。` }),
+        }
+      }
+    }
+
     if (action === 'read_test_results') return handleReadTestResults(directory, context.sessionID, args)
     if (action === 'read_test_specs') return handleReadTestSpecs(directory, context.sessionID)
     if (action === 'read_lizhu_results') return handleReadLizhuResults(directory, context.sessionID)
+
+    if (action === 'read_kui_plan') return handleReadKuiPlan(directory, context.sessionID, args)
+    if (action === 'read_all_kui_plans') return handleReadAllKuiPlans(directory, context.sessionID)
+    if (action === 'read_kui_plan_detail') return handleReadKuiPlanDetail(directory, context.sessionID, args)
 
     const moduleName = args.module_name as string
 
@@ -262,4 +279,94 @@ async function handleReadTestSpecs(directory: string, sessionId: string): Promis
   } catch (err) {
     return { title: '读取失败', output: JSON.stringify({ status: 'error', error: (err as Error).message }) }
   }
+}
+
+async function handleReadKuiPlan(directory: string, sessionId: string, _args: any): Promise<ToolResult> {
+  const boundWs = await resolveWorkspace(directory, sessionId)
+  if (!boundWs) {
+    return { title: '未绑定工作空间', output: JSON.stringify({ status: 'error', error: '未绑定工作空间' }) }
+  }
+  const wsDir = getWorkspaceDir(directory, boundWs)
+
+  let fengzhouSessionId: string | null
+  const mode = getAgentMode(directory, sessionId)
+  if (mode === 'fengzhou') {
+    fengzhouSessionId = sessionId
+  } else {
+    fengzhouSessionId = await getKuiStarter(wsDir, sessionId)
+    if (!fengzhouSessionId) {
+      return { title: '未绑定风后', output: JSON.stringify({ status: 'error', error: '夔未绑定到风后' }) }
+    }
+  }
+
+  const plan = await readFirstPendingKuiPlan(wsDir, fengzhouSessionId)
+  if (!plan) {
+    return { title: '无待处理夔计划', output: JSON.stringify({ status: 'ok', message: `风后 ${fengzhouSessionId} 没有待处理的夔计划` }) }
+  }
+
+  return { title: `夔计划 ${plan.kui_plan_id}`, output: JSON.stringify(plan) }
+}
+
+async function handleReadAllKuiPlans(directory: string, sessionId: string): Promise<ToolResult> {
+  const boundWs = await resolveWorkspace(directory, sessionId)
+  if (!boundWs) {
+    return { title: '未绑定工作空间', output: JSON.stringify({ status: 'error', error: '未绑定工作空间' }) }
+  }
+  const wsDir = getWorkspaceDir(directory, boundWs)
+
+  let fengzhouSessionId: string | null
+  const mode = getAgentMode(directory, sessionId)
+  if (mode === 'fengzhou') {
+    fengzhouSessionId = sessionId
+  } else {
+    fengzhouSessionId = await getKuiStarter(wsDir, sessionId)
+    if (!fengzhouSessionId) {
+      return { title: '未绑定风后', output: JSON.stringify({ status: 'error', error: '夔未绑定到风后' }) }
+    }
+  }
+
+  const plans = await readFengzhouPlans(wsDir, fengzhouSessionId)
+  if (plans.length === 0) {
+    return { title: '无夔计划', output: JSON.stringify({ status: 'ok', message: '没有夔计划' }) }
+  }
+
+  const summaries = plans.map(p => ({
+    kui_plan_id: p.kui_plan_id,
+    status: p.status,
+    result: p.result,
+    plans: p.plans,
+  }))
+
+  return { title: `共 ${plans.length} 个夔计划`, output: JSON.stringify({ plans: summaries }) }
+}
+
+async function handleReadKuiPlanDetail(directory: string, sessionId: string, args: any): Promise<ToolResult> {
+  const kuiPlanId = args.kui_plan_id as string | undefined
+  if (!kuiPlanId) {
+    return { title: '参数错误', output: JSON.stringify({ status: 'error', error: 'kui_plan_id 必填' }) }
+  }
+
+  const boundWs = await resolveWorkspace(directory, sessionId)
+  if (!boundWs) {
+    return { title: '未绑定工作空间', output: JSON.stringify({ status: 'error', error: '未绑定工作空间' }) }
+  }
+  const wsDir = getWorkspaceDir(directory, boundWs)
+
+  let fengzhouSessionId: string | null
+  const mode = getAgentMode(directory, sessionId)
+  if (mode === 'fengzhou') {
+    fengzhouSessionId = sessionId
+  } else {
+    fengzhouSessionId = await getKuiStarter(wsDir, sessionId)
+    if (!fengzhouSessionId) {
+      return { title: '未绑定风后', output: JSON.stringify({ status: 'error', error: '夔未绑定到风后' }) }
+    }
+  }
+
+  const plan = await readKuiPlan(wsDir, fengzhouSessionId, kuiPlanId)
+  if (!plan) {
+    return { title: '夔计划不存在', output: JSON.stringify({ status: 'error', error: `夔计划 ${kuiPlanId} 不存在` }) }
+  }
+
+  return { title: `夔计划 ${kuiPlanId} 详情`, output: JSON.stringify({ kui_plan_id: plan.kui_plan_id, status: plan.status, result: plan.result, plans: plan.plans }) }
 }

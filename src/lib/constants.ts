@@ -118,9 +118,18 @@ export const executorStatusSchema = z.object({
   session_id: z.string().describe('由 start 返回的 session_id'),
 })
 
+export const executorStartKuiSchema = z.object({
+  action: z.literal('start_kui'),
+  plans: z.array(z.object({
+    module_name: z.string().describe('模块唯一标识'),
+    development_plan: z.string().describe('该模块的开发计划文本'),
+  })).describe('批量计划列表'),
+})
+
 export const executorArgsSchema = z.discriminatedUnion('action', [
   executorStartSchema,
   executorStatusSchema,
+  executorStartKuiSchema,
 ])
 
 export const executorStartLizhuSchema = z.object({
@@ -175,6 +184,13 @@ export const updaterMoveSchema = z.object({
   session_id: z.string().optional().describe('会话 ID（用于日志）'),
 })
 
+export const updaterUpdateKuiPlanSchema = z.object({
+  action: z.literal('update_kui_plan'),
+  kui_plan_id: z.string().describe('夔计划 ID（从 read_kui_plan 返回的计划中获取）'),
+  status: z.enum(['pending', 'running', 'completed']).optional().describe('夔计划状态'),
+  result: z.string().optional().describe('夔计划执行结果'),
+})
+
 export const updaterResultSchema = z.object({
   action: z.literal('write_result'),
   module_name: z.string().describe('模块唯一标识'),
@@ -210,6 +226,7 @@ export const updaterArgsSchema = z.discriminatedUnion('action', [
   updaterDefinitionSchema,
   updaterHistorySchema,
   updaterMoveSchema,
+  updaterUpdateKuiPlanSchema,
 ])
 
 export const updaterPlanArgsSchema = z.discriminatedUnion('action', [
@@ -256,6 +273,10 @@ export const readerReadPlanFilesSchema = z.object({
   module_name: z.string().describe('模块唯一标识'),
 })
 
+export const readerReadKuiPlanSchema = z.object({
+  action: z.literal('read_kui_plan'),
+})
+
 export const readerArgsSchema = z.discriminatedUnion('action', [
   readerSpecSchema,
   readerDefinitionSchema,
@@ -263,6 +284,7 @@ export const readerArgsSchema = z.discriminatedUnion('action', [
   readerHistorySchema,
   readerDirsSchema,
   readerReadPlanFilesSchema,
+  readerReadKuiPlanSchema,
 ])
 
 export const readerTestResultsSchema = z.object({

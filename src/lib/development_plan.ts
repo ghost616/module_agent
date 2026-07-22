@@ -5,6 +5,7 @@ import { exists, readText, readJson, writeText } from './fs.ts'
 export interface PlanMeta {
   plan_id: string
   plan_summary: string
+  starter_session_id: string
   code_reviewed: boolean
   plan_completed: boolean
   test_passed: boolean
@@ -62,6 +63,7 @@ export async function savePlan(
   planId: string,
   planData: PlanDetail,
   planSummary: string,
+  starterSessionId: string,
 ): Promise<void> {
   await ensureDir(workspaceDir)
 
@@ -72,6 +74,7 @@ export async function savePlan(
   const entry: PlanMeta = {
     plan_id: planId,
     plan_summary: planSummary,
+    starter_session_id: starterSessionId,
     code_reviewed: false,
     plan_completed: false,
     test_passed: false,
@@ -90,6 +93,7 @@ export async function createReviewPlan(
   filePaths: string[],
   reviewDescription: string,
   planSummary: string,
+  starterSessionId: string,
 ): Promise<void> {
   await savePlan(workspaceDir, planId, {
     plan_id: planId,
@@ -97,7 +101,7 @@ export async function createReviewPlan(
     development_plan: reviewDescription,
     session_id: '',
     modified_files: filePaths,
-  }, planSummary)
+  }, planSummary, starterSessionId)
 
   await markPlanComplete(workspaceDir, planId, filePaths)
 }
@@ -135,12 +139,12 @@ export async function markTestPassed(
   return true
 }
 
-export async function getFirstPendingReview(workspaceDir: string): Promise<PlanDetail | null> {
+export async function getFirstPendingReview(workspaceDir: string, starterSessionId?: string): Promise<PlanDetail | null> {
   const metadata = await readAllMetadata(workspaceDir)
   for (const meta of metadata) {
-    if (meta.plan_completed && !meta.code_reviewed) {
-      return readPlan(workspaceDir, meta.plan_id)
-    }
+    if (!meta.plan_completed || meta.code_reviewed) continue
+    if (starterSessionId && meta.starter_session_id !== starterSessionId) continue
+    return readPlan(workspaceDir, meta.plan_id)
   }
   return null
 }
