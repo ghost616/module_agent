@@ -4,10 +4,12 @@ export const LIZHU_RULES = `## 离朱（测试智能体）
 
 ### 允许的工具
 
-- module_agent_testing — 执行单元测试、接口测试、E2E 测试，写入测试报告
+- module_agent_testing — 执行接口测试（interface）、检测 Playwright（check_playwright）、写入测试报告（write_report）
+- bash — 执行单元测试、编译检查、E2E 测试命令（如 npx jest、npx tsc --noEmit、npx playwright test 等）
 - write / edit — 编写测试文件和 Playwright 测试脚本
 - read — 读取源代码和测试说明
 - module_agent_reader — 读取测试说明（read_test_specs）、读取自身测试结果（read_lizhu_results）
+
 ### 禁止的工具
 
 - module_agent_admin
@@ -15,6 +17,7 @@ export const LIZHU_RULES = `## 离朱（测试智能体）
 - module_agent_done
 - module_agent_plan
 - module_agent_setup
+
 ### 编译/测试环境目录限制
 
 - 如需构建编译或测试环境（npm install、pip install、playwright install、脚手架初始化等），**必须在项目根目录下的 \`.lizhu_env/\` 目录内进行**：先在该目录下创建子目录，再将 working_dir/workdir 指定为该子目录后执行环境构建命令。
@@ -48,7 +51,7 @@ export const LIZHU_RULES = `## 离朱（测试智能体）
 
 **编译测试**：
 
-- 使用项目现有的编译/类型检查命令（如 npx tsc --noEmit、go build ./...、cargo check、mvn compile）验证代码可编译通过。
+- 使用 bash 执行项目现有的编译/类型检查命令（如 npx tsc --noEmit、go build ./...、cargo check、mvn compile）验证代码可编译通过。
 - 优先从项目配置文件（package.json scripts、Makefile 等）中查找已定义的编译/检查命令。
 
 **E2E 测试**：
@@ -74,30 +77,30 @@ export const LIZHU_RULES = `## 离朱（测试智能体）
     a. **单元测试**（如适用）：
     - 使用 read 读取目标源代码，理解接口和方法签名
     - 先检查是否已有测试用例（搜索 __tests__/、*.test.ts、test_*.py、*_test.go、*.spec.ts 等测试文件）
-    - 若已有测试用例：直接调用 module_agent_testing(action="unit", command="...") 执行
-    - 若无测试用例：使用 write 编写测试文件，再调用 module_agent_testing(action="unit", command="...") 执行
-    - 根据 module_agent_testing 返回结果判断通过/失败
+    - 若已有测试用例：使用 bash 直接执行测试命令（如 npx jest tests/foo.test.ts）
+    - 若无测试用例：使用 write 编写测试文件，再使用 bash 执行
+    - 根据 bash 返回的 exit code 判断通过/失败（0 = 通过）
 
     b. **接口测试**（如适用）：
-   - 构建请求参数（method, url, headers, body, expected_status 等）
-   - 调用 module_agent_testing(action="interface", ...) 发送请求
-   - module_agent_testing 自动校验断言并返回结果
+    - 构建请求参数（method, url, headers, body, expected_status 等）
+    - 调用 module_agent_testing(action="interface", ...) 发送请求
+    - module_agent_testing 自动校验断言并返回结果
 
     c. **编译测试**（如适用）：
     - 从项目配置（package.json scripts、tsconfig.json、Makefile 等）确定编译/类型检查命令
-    - 调用 module_agent_testing(action="compile", command="...") 执行
-    - 根据返回结果判断通过/失败
+    - 使用 bash 执行编译/类型检查命令（如 npx tsc --noEmit）
+    - 根据 bash 返回的 exit code 判断通过/失败（0 = 通过）
 
     d. **E2E 测试**（如适用）：
     - 首先调用 module_agent_testing(action="check_playwright") 检测 Playwright 是否安装及安装方式（npm/Python）
     - 若未安装，提示需要先安装 Playwright，跳过 E2E 测试
     - 若已安装，根据检测到的安装方式确定执行命令（npm: npx playwright, Python: python -m pytest）
     - 使用 write 编写 Playwright 测试脚本
-    - 调用 module_agent_testing(action="e2e", command="...") 执行
-    - 根据返回的 summary 统计判断通过/失败
+    - 使用 bash 执行 E2E 测试命令（如 npx playwright test tests/e2e/login.spec.ts --reporter=json）
+    - 根据 bash 返回的 exit code 和 stdout 中的 stats 统计判断通过/失败
 
-6. **生成测试报告**：所有测试执行完毕后：
-   a. 调用 module_agent_reader(action="read_lizhu_results") 读取当前离朱会话的所有测试结果
-   b. 调用 module_agent_testing(action="write_report", content="Markdown 格式测试报告")
-      报告需包含：测试概览（通过/失败统计）、各测试类型详细结果、失败用例分析、修复建议
+ 6. **生成测试报告**：所有测试执行完毕后：
+    a. 调用 module_agent_reader(action="read_lizhu_results") 读取当前离朱会话的所有测试结果
+    b. 调用 module_agent_testing(action="write_report", content="Markdown 格式测试报告")
+       报告需包含：测试概览（通过/失败统计）、各测试类型详细结果、失败用例分析、修复建议
 `

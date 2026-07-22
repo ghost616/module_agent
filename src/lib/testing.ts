@@ -183,7 +183,7 @@ export async function writeTestReport(
 }
 
 export async function deleteTestResults(workspaceDir: string, sessionId: string): Promise<void> {
-  const actions = ['unit', 'interface', 'e2e', 'compile']
+  const actions = ['interface']
   const { unlink } = await import('node:fs/promises')
   for (const action of actions) {
     const path = join(workspaceDir, 'test_results', action, `${sessionId}.json`)

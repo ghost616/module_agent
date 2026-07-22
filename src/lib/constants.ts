@@ -395,14 +395,6 @@ export const planArgsSchema = z.discriminatedUnion('action', [
 // Zod Schema: module_agent_testing
 // ============================================================
 
-export const testUnitSchema = z.object({
-  action: z.literal('unit'),
-  command: z.string().describe('测试命令（完整 shell 命令，如 npx jest tests/auth.test.ts）'),
-  module_name: z.string().optional().describe('所属模块名称'),
-  working_dir: z.string().optional().describe('命令执行的工作目录（默认为项目根目录）'),
-  timeout: z.number().optional().default(300000).describe('超时时间（ms），默认 5 分钟'),
-})
-
 export const testInterfaceSchema = z.object({
   action: z.literal('interface'),
   method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']).describe('HTTP 请求方法'),
@@ -414,22 +406,6 @@ export const testInterfaceSchema = z.object({
   expected_body_contains: z.string().optional().describe('期望响应体包含的字符串（传入则自动断言）'),
   expected_headers: z.record(z.string(), z.string()).optional().describe('期望的响应头（传入则自动断言）'),
   module_name: z.string().optional().describe('所属模块名称'),
-})
-
-export const testE2eSchema = z.object({
-  action: z.literal('e2e'),
-  command: z.string().describe('Playwright 测试命令（如 npx playwright test tests/e2e/login.spec.ts --reporter=json）'),
-  module_name: z.string().optional().describe('所属模块名称'),
-  working_dir: z.string().optional().describe('命令执行的工作目录（默认为项目根目录）'),
-  timeout: z.number().optional().default(600000).describe('超时时间（ms），默认 10 分钟'),
-})
-
-export const testCompileSchema = z.object({
-  action: z.literal('compile'),
-  command: z.string().describe('编译/类型检查命令（完整 shell 命令，如 npx tsc --noEmit、go build ./...、cargo check）'),
-  module_name: z.string().optional().describe('所属模块名称'),
-  working_dir: z.string().optional().describe('命令执行的工作目录（默认为项目根目录）'),
-  timeout: z.number().optional().default(300000).describe('超时时间（ms），默认 5 分钟'),
 })
 
 export const testWriteSpecSchema = z.object({
@@ -447,10 +423,7 @@ export const testCheckPlaywrightSchema = z.object({
 })
 
 export const testingArgsSchema = z.discriminatedUnion('action', [
-  testUnitSchema,
   testInterfaceSchema,
-  testE2eSchema,
-  testCompileSchema,
   testWriteSpecSchema,
   testWriteReportSchema,
   testCheckPlaywrightSchema,
