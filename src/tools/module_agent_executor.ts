@@ -478,7 +478,7 @@ async function handleStartReview(
       }
     }
 
-    const pending = await getFirstPendingReview(workspaceDir)
+    const pending = await getFirstPendingReview(workspaceDir, fengzhouSessionId)
     if (!pending) {
       return {
         title: '无待审查计划',
@@ -713,7 +713,7 @@ async function handleGaotaoStatus(
 
   const result = await readReviewResult(workspaceDir, gaotaoSid)
   if (!result || result.planReviews.length === 0) {
-    const pending = await getFirstPendingReview(workspaceDir)
+    const pending = await getFirstPendingReview(workspaceDir, fengzhouSessionId)
     if (pending) {
       if (!idleInfo.lastActivity) {
         return {
@@ -770,7 +770,7 @@ async function handleCheckReviewer(
 
   const result = await readReviewResult(workspaceDir, gaotaoSid)
   if (!idleInfo.lastActivity) {
-    const pending = await getFirstPendingReview(workspaceDir)
+    const pending = await getFirstPendingReview(workspaceDir, fengzhouSessionId)
     if (pending) {
       return {
         title: '皋陶空闲',

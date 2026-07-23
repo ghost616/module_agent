@@ -64,10 +64,11 @@ export const KUI_RULES = `## 夔（批量编排智能体）
        - 修复完成后回到步骤 5
      * 审查通过后进入步骤 9
    - 若无法启动皋陶（idle=false 且 bound=true）：
-     * 调用 module_agent_updater(action="update_kui_plan", kui_plan_id="xxx", status="completed", result="力牧执行结果汇总\n[未审查] 皋陶原因：...") 附加"未审查"标记
+     * 皋陶已被其他任务占用，进入步骤 9 统一标记所有计划为"未审查"
 
 9. **标记所有计划完成**：
    - 皋陶审查通过后，逐计划调用 module_agent_updater(action="update_kui_plan", kui_plan_id="xxx", status="completed", result="力牧执行结果+审查通过") 标记完成
+   - 皋陶无法启动时，逐计划调用 module_agent_updater(action="update_kui_plan", kui_plan_id="xxx", status="completed", result="力牧执行结果汇总\n[未审查] 皋陶原因：皋陶被占用无法启动") 标记完成
 
 ### 工具使用原则
 
