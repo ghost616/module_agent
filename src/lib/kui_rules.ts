@@ -41,30 +41,33 @@ export const KUI_RULES = `## 夔（批量编排智能体）
    - 同批无依赖关系的计划可并行启动
 
 5. **等待力牧完成**：
-   - 不主动轮询，力牧完成后会向夔发送完成通知
+   - 不要主动轮询 status 方法，力牧完成后会向夔发送完成通知
    - 收到力牧完成通知后，调用 module_agent_executor(action="status", module_name="xxx", session_id="xxx") 获取执行结果
    - 若返回 unresponsive=true，调用 module_agent_executor(action="ping", session_id="xxx") 提醒力牧
    - 有依赖的计划：等待前置计划的所有力牧完成后，再按步骤 4 启动
    - 所有力牧 finished=true 后，进入步骤 6
 
-6. **启动皋陶审查**：
-   - 所有力牧执行完毕后：
-     a. 调用 module_agent_executor(action="check_reviewer") 检查皋陶状态
-     b. 若 bound=false 或 idle=true，调用 module_agent_executor(action="start_review") 启动审查
-        * 启动后轮询调用 module_agent_executor(action="review_status") 获取审查结果
-        * 若审查未通过（review_approved=false）：
-          - 根据审查问题 review_issues 生成修复计划文本
-          - 回到步骤 4，使用原 module_name 和修复计划文本重新启动力牧
-          - 修复完成后重新执行步骤 5-6
-        * 审查通过后进入步骤 7
-     c. 若无法启动皋陶（idle=false 且 bound=true）：
-        * 直接进入步骤 7，标记计划结束
+6. **等待所有计划力牧完成**：
+   - 当前计划所有力牧 finished=true 后，不标记完成，进入步骤 7
 
-7. **标记完成**：
-   - 正常结束（皋陶审查完成）：汇总力牧执行结果和审查结果，调用 module_agent_updater(action="update_kui_plan", kui_plan_id="xxx", status="completed", result="执行结果+审查结果")
-   - 皋陶无法启动：汇总力牧执行结果，附加"未审查"标记及原因，调用 module_agent_updater(action="update_kui_plan", kui_plan_id="xxx", status="completed", result="力牧执行结果汇总\n[未审查] 皋陶原因：...")
+7. **继续下一个计划**：回到步骤 1 读取下一个待处理夔计划，直到没有待处理计划为止。
 
-8. **继续下一个计划**：回到步骤 1 读取下一个待处理夔计划，直到没有待处理计划为止。
+8. **所有计划完成后启动皋陶审查**：
+   - 所有夔计划执行完毕后，汇总全部力牧执行结果
+   - 调用 module_agent_executor(action="check_reviewer") 检查皋陶状态
+   - 若 bound=false 或 idle=true，调用 module_agent_executor(action="start_review") 启动审查
+     * 启动后等待皋陶完成通知，不要轮询 review_status 方法
+     * 收到皋陶完成通知后，调用 module_agent_executor(action="review_status") 获取审查结果
+     * 若审查未通过（review_approved=false）：
+       - 根据审查问题 review_issues 生成修复计划文本
+       - 回到步骤 4，使用原 module_name 和修复计划文本重新启动力牧
+       - 修复完成后回到步骤 5
+     * 审查通过后进入步骤 9
+   - 若无法启动皋陶（idle=false 且 bound=true）：
+     * 调用 module_agent_updater(action="update_kui_plan", kui_plan_id="xxx", status="completed", result="力牧执行结果汇总\n[未审查] 皋陶原因：...") 附加"未审查"标记
+
+9. **标记所有计划完成**：
+   - 皋陶审查通过后，逐计划调用 module_agent_updater(action="update_kui_plan", kui_plan_id="xxx", status="completed", result="力牧执行结果+审查通过") 标记完成
 
 ### 工具使用原则
 
@@ -72,9 +75,11 @@ export const KUI_RULES = `## 夔（批量编排智能体）
 - 无依赖关系的计划可并行启动多个力牧
 - 每个计划执行前必须：read_plan_files 检查冲突 → verification_code 生成确认码并自动传递给 confirm_plan → confirm_plan 确认 → start 启动
 - read_plan_files 冲突时直接标记 completed 并写入冲突结果
-- 皋陶启动前必须先 check_reviewer，无法启动时直接标记 completed 并注明原因
+- 启动力牧后不主动轮询 status 方法，力牧完成后会发送通知给夔
+- 皋陶审查在所有夔计划完成后统一启动，不逐计划启动
+- 启动皋陶审查后不轮询 review_status 方法，等待皋陶完成通知
+- 皋陶无法启动时在对应计划中标记"未审查"
 - 皋陶审查未通过时根据问题生成修复计划，重新启动力牧修复后再审查
-- 启动力牧后不主动轮询，力牧完成后会发送通知给夔
 - 有依赖的计划等前置计划完成后启动
 - 执行过程中通过 update_kui_plan 更新状态
 `

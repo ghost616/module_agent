@@ -37,7 +37,7 @@ function checkPermission(mode: AgentMode, action: string): ToolResult | null {
     get_pending_review: ['gaotao'],
     clean_completed: ['fengzhou'],
     create_review_plan: ['fengzhou'],
-    confirm_plan: ['fengzhou'],
+    confirm_plan: ['fengzhou', 'kui'],
   }
 
   const modes = allowed[action]

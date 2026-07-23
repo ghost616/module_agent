@@ -307,28 +307,40 @@ export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
           }
 
           if (workspaceDir && mode === 'limu') {
-            try {
-              const starter = await getLimuStarter(workspaceDir, sessionId)
-              const starterMode = starter ? getAgentMode(ctx.directory, starter) : undefined
-              if (starter && (starterMode === 'fengzhou' || starterMode === 'kui')) {
-                const moduleName = await getModuleNameBySession(workspaceDir, sessionId)
-                await ctx.client.session.promptAsync({
-                  path: { id: starter },
-                  body: {
-                    parts: [{ type: 'text', text: `力牧（会话 ${sessionId}）任务完成。请调用 module_agent_executor(action="status", module_name="${moduleName ?? '<模块名>'}", session_id="${sessionId}") 获取力牧完成情况。` }],
-                  },
-                })
-                await ctx.client.app.log({
-                  body: {
-                    service: 'module-agent-plugin',
-                    level: 'info',
-                    message: `Notified ${starterMode} ${starter} about limu ${sessionId} completion`,
-                    extra: { starter, starterMode, limu: sessionId },
-                  },
-                })
+            const boundLizhu = await getBoundLizhu(workspaceDir, sessionId)
+            if (boundLizhu && isWorking(boundLizhu)) {
+              await ctx.client.app.log({
+                body: {
+                  service: 'module-agent-plugin',
+                  level: 'info',
+                  message: `Limu ${sessionId} idle but bound lizhu ${boundLizhu} still running, skip notification`,
+                  extra: { limu: sessionId, lizhu: boundLizhu },
+                },
+              })
+            } else {
+              try {
+                const starter = await getLimuStarter(workspaceDir, sessionId)
+                const starterMode = starter ? getAgentMode(ctx.directory, starter) : undefined
+                if (starter && (starterMode === 'fengzhou' || starterMode === 'kui')) {
+                  const moduleName = await getModuleNameBySession(workspaceDir, sessionId)
+                  await ctx.client.session.promptAsync({
+                    path: { id: starter },
+                    body: {
+                      parts: [{ type: 'text', text: `力牧（会话 ${sessionId}）任务完成。请调用 module_agent_executor(action="status", module_name="${moduleName ?? '<模块名>'}", session_id="${sessionId}") 获取力牧完成情况。` }],
+                    },
+                  })
+                  await ctx.client.app.log({
+                    body: {
+                      service: 'module-agent-plugin',
+                      level: 'info',
+                      message: `Notified ${starterMode} ${starter} about limu ${sessionId} completion`,
+                      extra: { starter, starterMode, limu: sessionId },
+                    },
+                  })
+                }
+              } catch {
+                // notification failed, ignore
               }
-            } catch {
-              // notification failed, ignore
             }
           }
 
