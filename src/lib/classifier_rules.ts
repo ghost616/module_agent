@@ -142,15 +142,25 @@ export const CLASSIFIER_RULES = `## 隶首（文件归类智能体）
 
 所有分类绑定并 apply 完毕后：
 
+**heading 命名规范**（current_spec.md 的二级标题必须遵守）：
+- heading 必须是功能领域/职责描述，**禁止使用类名或文件名作为标题**
+- 一个 heading 下可以描述多个相关类/文件
+- 命名以名词短语为主，简洁概括功能领域
+- 示例（正确）：`## 数据访问层`、`## 会话管理`、`## JSON 序列化`、`## 事件总线`、`## 配置加载`
+- 示例（错误）：`## JsonMapper`、`## SessionManager`、`## MyService`
+
 1. **有文件新增的已有模块**（bind_module 时 is_new_module=false 的模块）：
    a. 调用 module_design_admin(action="update_module", ...) 更新模块设计
    b. 调用 module_agent_reader(action="read_spec", module_name="模块名") 读取当前功能说明
    c. 调用 module_agent_reader(action="read_spec_headings", module_name="模块名") 获取已有标题列表
-   d. 调用 module_agent_updater(action="update_spec", heading="已有标题或新标题", ...) 更新功能说明，heading 必须与 read_spec_headings 返回的标题精确匹配
+   d. 调用 module_agent_updater(action="update_spec", heading="已有标题或新标题", ...) 更新功能说明
+      - 若新增文件属于某个已有 heading 的功能范畴，heading 必须与 read_spec_headings 返回的标题精确匹配
+      - 若新增文件的功能与已有 heading 都不同，新建 heading，遵循命名规范（功能领域描述，非类名）
+   e. 检查已有 heading 是否为类名：若 read_spec_headings 返回的标题是类名/文件名，必须将其改为符合命名规范的功能领域描述
 
 2. **新建的模块**（bind_module 时 is_new_module=true 的模块）：
-    调用 module_agent_updater(action="update_spec", heading="新标题", ...) 更新功能说明
-    （模块设计已在 bind_module 内部通过 add_module 添加，无需再次 update_module）
+     调用 module_agent_updater(action="update_spec", heading="功能领域描述名", ...) 更新功能说明，heading 必须遵循命名规范
+     （模块设计已在 bind_module 内部通过 add_module 添加，无需再次 update_module）
 
 #### 第七步：汇总报告
 

@@ -24,7 +24,7 @@ export const moduleAgentUpdater = tool({
   description: `
 增量更新模块元数据文件。
 支持操作：
-- update_spec： 增/改 current_spec.md 中指定 heading 下的内容
+- update_spec： 增/改 current_spec.md 中指定 heading 下的内容。heading 必须为功能领域描述（如"数据访问层"、"会话管理"），禁止使用类名或文件名如 JsonMapper/SessionManager
 - update_definition： 增/删/改 module_definition.json 中的文件条目
 - move_definition： 将文件定义从一个模块移动到另一个模块，并在双方追加日志
 - append_history： 向 change_history.log 追加变更记录
@@ -32,7 +32,7 @@ export const moduleAgentUpdater = tool({
   args: {
     action: tool.schema.enum(['update_spec', 'update_definition', 'move_definition', 'append_history', 'update_kui_plan']).describe('操作类型'),
     module_name: tool.schema.string().optional().describe('模块唯一标识名称'),
-    heading: tool.schema.string().optional().describe('update_spec：要修改的二级标题名（不含 ## 前缀）'),
+    heading: tool.schema.string().optional().describe('update_spec：要修改的二级标题名（不含 ## 前缀）。必须是功能领域描述（如"数据访问层"、"会话管理"），禁止使用类名或文件名'),
     content: tool.schema.string().optional().describe('update_spec：该 section 的新增内容'),
     mode: tool.schema.enum(['set', 'add']).optional().describe('update_spec：set=替换；add=追加（默认 add）'),
     files_to_add: tool.schema.array(

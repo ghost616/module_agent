@@ -169,26 +169,29 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
     - **重要：每次调用 write / edit 修改文件前，必须先调用 module_agent_updater_plan(action="check_active_plan", module_name="${moduleName}") 检测计划有效性。若返回 status="error"，说明计划已失效（已完成或被清理），必须立即停止所有文件修改操作并报告。**
    - **重要：每次调用 write / edit 修改已有文件前，必须先调用 module_agent_backup(action="backup", module_name="${moduleName}", file_path="<相对路径>") 备份该文件。新建文件无需备份。**
 
-4. **完成代码变更或调用 write / edit 工具后，必须按顺序调用 module_agent_updater 工具记录结果**：
+4. **完成代码变更或调用 write / edit 工具后，若变更涉及以下情况才调用 module_agent_updater 记录**：
 
    a. 调用 module_agent_updater(action="update_spec", ...)
-        —— 对 current_spec.md 中受影响的 ## 二级标题做增量更新。
-        调用 update_spec 前，必须先通过以下步骤读取数据：
+        —— **仅当本次变更影响了模块的功能边界/职责范围时才需要更新**（如新增功能模块、新增对外接口、职责拆分合并等）。
+        纯 bug 修复、代码重构、格式调整、性能优化（不改变对外行为）等无需更新 current_spec.md。
+        **heading 命名规则**：heading 必须是功能领域描述（如"数据访问层"、"会话管理"、"JSON 序列化"、"事件总线"），**禁止使用类名或文件名**（如 JsonMapper、SessionManager、MyService）。一个 heading 下可聚合多个相关类。
+        需要更新时：
         - 调用 module_agent_reader(action="read_spec_headings", module_name="${moduleName}") 获取已有标题列表
         - 若 heading 已存在：再调用 module_agent_reader(action="read_spec_section", module_name="${moduleName}", heading="xxx") 获取该 section 现有内容，根据现有内容决定更新策略（mode='add' 追加或 mode='set' 替换）
-        - 若 heading 不存在（新建 section）：直接使用 mode='add'，无需调用 read_spec_section
+        - 若 heading 不存在（新建 section）：直接使用 mode='add'，无需调用 read_spec_section。新建 heading 必须遵循上述命名规则
 
    b. 调用 module_agent_updater(action="update_definition", ...)
-      —— 若有新文件：传入 files_to_add（description 为该文件【整体功能职责】的完整说明）
-      —— 若有文件删除：传入 files_to_remove
-      —— 若文件功能说明需要变化：传入 files_to_update
-      —— 重要：description 是该文件【整体职责的累积性完整说明】，不是本次计划的变更记录；
-         files_to_update 会整体替换旧 description。必须先通过 read_descriptions 读取待更新文件的现有说明，
-         在保留文件原有职责的基础上合并本次新增/变化的功能，禁止只写本次计划内容而覆盖历史说明。
-         本次计划的具体变更请记录在步骤 c 的 append_history 中。
+       —— **仅当文件新增/删除或文件整体功能职责发生变化时才需要更新**。
+       —— 若有新文件：传入 files_to_add（description 为该文件【整体功能职责】的完整说明）
+       —— 若有文件删除：传入 files_to_remove
+       —— 若文件功能说明需要变化：传入 files_to_update
+       —— 重要：description 是该文件【整体职责的累积性完整说明】，不是本次计划的变更记录；
+          files_to_update 会整体替换旧 description。必须先通过 read_descriptions 读取待更新文件的现有说明，
+          在保留文件原有职责的基础上合并本次新增/变化的功能，禁止只写本次计划内容而覆盖历史说明。
+          本次计划的具体变更请记录在步骤 c 的 append_history 中。
 
    c. 调用 module_agent_updater(action="append_history", ...)
-      —— 传入变更描述
+       —— **每次代码变更都必须调用**，传入变更描述
 
 5. **严格遵循项目代码规范和 agent_profile 中的约定**。
 
