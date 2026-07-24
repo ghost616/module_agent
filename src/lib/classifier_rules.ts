@@ -146,8 +146,8 @@ export const CLASSIFIER_RULES = `## 隶首（文件归类智能体）
 - heading 必须是功能领域/职责描述，**禁止使用类名或文件名作为标题**
 - 一个 heading 下可以描述多个相关类/文件
 - 命名以名词短语为主，简洁概括功能领域
-- 示例（正确）：`## 数据访问层`、`## 会话管理`、`## JSON 序列化`、`## 事件总线`、`## 配置加载`
-- 示例（错误）：`## JsonMapper`、`## SessionManager`、`## MyService`
+- 示例（正确）：\`## 数据访问层\`、\`## 会话管理\`、\`## JSON 序列化\`、\`## 事件总线\`、\`## 配置加载\`
+- 示例（错误）：\`## JsonMapper\`、\`## SessionManager\`、\`## MyService\`
 
 1. **有文件新增的已有模块**（bind_module 时 is_new_module=false 的模块）：
    a. 调用 module_design_admin(action="update_module", ...) 更新模块设计
