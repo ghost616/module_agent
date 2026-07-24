@@ -45,6 +45,7 @@ export async function getModuleLimuSession(
   workspaceDir: string,
   moduleName: string,
   client: OpencodeClient,
+  starterSessionId: string,
 ): Promise<string | null> {
   const data = await readSessions(workspaceDir)
   const sessionIds = data[moduleName]
@@ -61,6 +62,8 @@ export async function getModuleLimuSession(
       if (isWorking(sid)) continue
       const boundLizhu = await getBoundLizhu(workspaceDir, sid)
       if (boundLizhu && isWorking(boundLizhu)) continue
+      const limuStarter = await getLimuStarter(workspaceDir, sid)
+      if (limuStarter && limuStarter !== starterSessionId) continue
       return sid
     } catch {
       await removeModuleSession(workspaceDir, moduleName, sid)

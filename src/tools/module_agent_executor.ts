@@ -275,8 +275,8 @@ async function handleStart(
   // 读取工作空间模型配置
   const modelConfig = await readAgentModelConfig(workspaceDir)
 
-  // 查找可复用的力牧会话
-  const reusable = await getModuleLimuSession(workspaceDir, module_name, client)
+  // 查找可复用的力牧会话（仅限当前启动者的）
+  const reusable = await getModuleLimuSession(workspaceDir, module_name, client, sessionID)
 
   if (reusable) {
     await clearSessionChecked(workspaceDir, reusable)
