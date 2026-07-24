@@ -31,7 +31,7 @@ import { validateLizhuEnvCommand } from './lib/lizhu_env_guard.ts'
 import { resolveWorkspace, getWorkspaceDir } from './lib/workspace.ts'
 import { getBoundStarter, getBoundLizhu, getLimuStarter, getGaotaoStarter, getKuiStarter, getModuleNameBySession, getKuiSubAgentsStatus } from './lib/module_session_tracker.ts'
 
-export const OpenCodePluginPlugin: Plugin = async (ctx: PluginInput) => {
+export const ModuleAgentPlugin: Plugin = async (ctx: PluginInput) => {
   await ctx.client.app.log({
     body: {
       service: 'module-agent-plugin',
