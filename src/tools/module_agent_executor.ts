@@ -760,14 +760,14 @@ async function handleCheckReviewer(
   if (idleInfo.lastActivity && !idleInfo.unresponsive) {
     return {
       title: '皋陶忙碌',
-      output: JSON.stringify({ bound: true, idle: false, message: '皋陶正在审查中' }),
+      output: JSON.stringify({ bound: true, idle: false, reviewer_session_id: gaotaoSid, message: '皋陶正在审查中' }),
     }
   }
 
   if (idleInfo.lastActivity) {
     return {
       title: '皋陶无响应',
-      output: JSON.stringify({ bound: true, idle: false, unresponsive: true, message: '皋陶空闲超过5分钟，无响应' }),
+      output: JSON.stringify({ bound: true, idle: false, unresponsive: true, reviewer_session_id: gaotaoSid, message: '皋陶空闲超过5分钟，无响应' }),
     }
   }
 
@@ -777,20 +777,20 @@ async function handleCheckReviewer(
     if (pending) {
       return {
         title: '皋陶空闲',
-        output: JSON.stringify({ bound: true, idle: true, message: '皋陶空闲，有待审查计划未完成，请调用 ping 提醒。', pending_review: true }),
+        output: JSON.stringify({ bound: true, idle: true, unresponsive: true, reviewer_session_id: gaotaoSid, message: '皋陶空闲，有待审查计划未完成，请调用 ping 提醒。' }),
       }
     }
   }
   if (!result || result.planReviews.length === 0) {
     return {
       title: '皋陶空闲',
-      output: JSON.stringify({ bound: true, idle: true, message: '皋陶空闲，审查结果为空' }),
+      output: JSON.stringify({ bound: true, idle: true, reviewer_session_id: gaotaoSid, message: '皋陶空闲，审查结果为空' }),
     }
   }
 
   return {
     title: '皋陶空闲',
-    output: JSON.stringify({ bound: true, idle: true, message: '皋陶空闲，可调用 start_review 继续使用' }),
+    output: JSON.stringify({ bound: true, idle: true, reviewer_session_id: gaotaoSid, message: '皋陶空闲，可调用 start_review 继续使用' }),
   }
 }
 
