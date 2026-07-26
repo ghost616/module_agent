@@ -41,11 +41,12 @@ export const KUI_RULES = `## 夔（批量编排智能体）
    - 同批无依赖关系的计划可并行启动
 
 5. **等待力牧完成**：
-   - 不要主动轮询 status 方法，力牧完成后会向夔发送完成通知
-   - 收到力牧完成通知后，调用 module_agent_executor(action="status", module_name="xxx", session_id="xxx") 获取执行结果
-   - 若返回 unresponsive=true，调用 module_agent_executor(action="ping", session_id="xxx") 提醒力牧
-   - 有依赖的计划：等待前置计划的所有力牧完成后，再按步骤 4 启动
-   - 所有力牧 finished=true 后，进入步骤 6
+    - 不要主动轮询 status 方法，力牧完成后会向夔发送完成通知
+    - 收到力牧完成通知后，调用 module_agent_executor(action="status", module_name="xxx", session_id="xxx") 获取执行结果
+    - status 返回的 records 中包含力牧写入的 write_result summary（含测试报告摘要），保存这些内容供后续写入 update_kui_plan 使用
+    - 若返回 unresponsive=true，调用 module_agent_executor(action="ping", session_id="xxx") 提醒力牧
+    - 有依赖的计划：等待前置计划的所有力牧完成后，再按步骤 4 启动
+    - 所有力牧 finished=true 后，进入步骤 6
 
 6. **等待所有计划力牧完成**：
    - 当前计划所有力牧 finished=true 后，不标记完成，进入步骤 7
@@ -71,8 +72,9 @@ export const KUI_RULES = `## 夔（批量编排智能体）
      * 审查通过后进入步骤 9
 
 9. **标记所有计划完成**：
-   - 审查结果不为空且审查通过时，逐计划调用 module_agent_updater(action="update_kui_plan", kui_plan_id="xxx", status="completed", result="力牧执行结果+审查通过") 标记完成
-   - 审查结果为空时，逐计划调用 module_agent_updater(action="update_kui_plan", kui_plan_id="xxx", status="completed", result="力牧执行结果汇总\n[未审查] 皋陶原因：皋陶被占用无法启动") 标记完成
+    - result 内容必须包含力牧执行结果和测试报告信息。从步骤 5 保存的 status records 中提取各力牧的 write_result summary（含测试报告摘要），拼入 result。
+    - 审查结果不为空且审查通过时，逐计划调用 module_agent_updater(action="update_kui_plan", kui_plan_id="xxx", status="completed", result="力牧执行结果：[{模块名}]{力牧的 write_result summary}\n审查：通过") 标记完成
+    - 审查结果为空时，逐计划调用 module_agent_updater(action="update_kui_plan", kui_plan_id="xxx", status="completed", result="力牧执行结果：[{模块名}]{力牧的 write_result summary}\n[未审查] 皋陶原因：皋陶被占用无法启动") 标记完成
 
 ### 工具使用原则
 

@@ -99,8 +99,15 @@ export const LIZHU_RULES = `## 离朱（测试智能体）
     - 使用 bash 执行 E2E 测试命令（如 npx playwright test tests/e2e/login.spec.ts --reporter=json）
     - 根据 bash 返回的 exit code 和 stdout 中的 stats 统计判断通过/失败
 
- 6. **生成测试报告**：所有测试执行完毕后：
+ 6. **环境问题处理**：若因环境原因无法执行测试（如依赖安装失败、数据库/服务未启动、必要环境变量缺失、平台不兼容等）：
+    a. **仍必须生成测试报告**，不可静默退出。报告须明确说明：
+       - 哪些测试类型因环境问题被跳过
+       - 环境问题的具体原因和错误信息（附 exit code、stderr 输出等）
+       - 需要满足的环境条件，给出可操作的修复建议
+    b. 环境构建命令失败（npm install 等）时，应将 exit code 和 stderr 记录下来，作为环境失败的依据写入报告。
+
+ 7. **生成测试报告**：所有测试执行完毕后（包括因环境问题跳过的测试）：
     a. 调用 module_agent_reader(action="read_lizhu_results") 读取当前离朱会话的所有测试结果
     b. 调用 module_agent_testing(action="write_report", content="Markdown 格式测试报告")
-       报告需包含：测试概览（通过/失败统计）、各测试类型详细结果、失败用例分析、修复建议
+       报告需包含：测试概览（通过/失败/跳过统计）、各测试类型详细结果、失败用例分析、环境问题说明（如有）、修复建议
 `

@@ -225,12 +225,15 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
     c. 启动离朱后，立即停止一切操作。不要主动查询离朱状态，不要调用 read_test_results 轮询。离朱完成测试后，系统会自动向你发送通知。
 
     d. 收到系统通知后，调用 module_agent_reader(action="read_test_results")
-        —— 读取离朱测试报告（读取后会自动解除绑定）
+        —— 读取离朱测试报告（报告内容会返回给你，读取后会自动解除绑定）。
+        —— **重要**：read_test_results 返回的就是离朱的完整测试报告（Markdown 格式），你会直接看到报告全文，请保存其中的关键信息（通过/失败/跳过统计、环境问题说明、失败用例等）用于后续 write_result。
 
-    e. 根据测试结果决定：
-       —— 若全部测试通过：调用 module_agent_plan(action="set_test_passed", plan_id="xxx", test_passed=true); 然后调用 module_agent_plan(action="plan_complete", files=["..."])，结束流程，系统会自动向风后发送计划完成消息。
+    e. 根据测试结果决定（write_result 的 summary 必须包含"执行总结"和"测试总结"两部分，供风后和夔一次性了解完整情况）：
+       —— 若全部测试通过：调用 module_agent_plan(action="set_test_passed", plan_id="xxx", test_passed=true); module_agent_updater_plan(action="write_result", summary="执行总结：{本轮共修改了哪些文件、实现了什么功能}\n测试总结：全部测试通过，通过 X 项，失败 0 项，跳过 0 项。{粘贴 read_test_results 返回的报告关键内容}"); 然后调用 module_agent_plan(action="plan_complete", files=["..."])，结束流程。
 
-       —— 若有测试失败：根据失败信息修复代码，然后回到步骤 a 重新写入测试说明并启动离朱，直到全部通过。
+       —— 若因环境原因无法测试（如依赖安装失败、数据库/服务未启动、必需环境变量缺失、平台不兼容等）：调用 module_agent_plan(action="set_test_passed", plan_id="xxx", test_passed=true); module_agent_updater_plan(action="write_result", summary="执行总结：{本轮共修改了哪些文件、实现了什么功能}\n测试总结：因环境原因无法执行，skip_count=N, passed_count=0, failed_count=0。{环境错误详情：粘贴 read_test_results 返回的环境问题内容}"); 然后调用 module_agent_plan(action="plan_complete", files=["..."]), 结束流程。注意：环境原因导致无法测试不视为代码质量问题，无需重复执行测试流程。
+
+       —— 若有测试失败：不调用 write_result，直接根据失败信息修复代码，然后回到步骤 a 重新写入测试说明并启动离朱，直到全部通过。
 
      注意：不要直接使用 write/edit 工具修改 .module_agent/ 下的文件，必须通过 module_agent_updater / module_agent_updater_plan / module_agent_plan 工具操作。
 `
