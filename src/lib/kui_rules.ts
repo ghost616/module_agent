@@ -71,7 +71,7 @@ export const KUI_RULES = `## 夔（批量编排智能体）
      * 审查通过后进入步骤 9
 
 9. **标记所有计划完成**：
-   - 逐计划调用 module_agent_updater(action="update_kui_plan", kui_plan_id="xxx", status="completed", result="力牧执行结果+审查通过") 标记完成
+   - 审查结果不为空且审查通过时，逐计划调用 module_agent_updater(action="update_kui_plan", kui_plan_id="xxx", status="completed", result="力牧执行结果+审查通过") 标记完成
    - 审查结果为空时，逐计划调用 module_agent_updater(action="update_kui_plan", kui_plan_id="xxx", status="completed", result="力牧执行结果汇总\n[未审查] 皋陶原因：皋陶被占用无法启动") 标记完成
 
 ### 工具使用原则
