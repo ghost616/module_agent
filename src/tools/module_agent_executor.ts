@@ -752,7 +752,7 @@ async function handleCheckReviewer(
   if (!gaotaoSid) {
     return {
       title: '皋陶未创建',
-      output: JSON.stringify({ bound: false, message: '皋陶未创建，可调用 start_review 启动' }),
+      output: JSON.stringify({ bound: false, idle: false, unresponsive: false, message: '皋陶未创建，可调用 start_review 启动' }),
     }
   }
 
@@ -760,7 +760,7 @@ async function handleCheckReviewer(
   if (idleInfo.lastActivity && !idleInfo.unresponsive) {
     return {
       title: '皋陶忙碌',
-      output: JSON.stringify({ bound: true, idle: false, reviewer_session_id: gaotaoSid, message: '皋陶正在审查中' }),
+      output: JSON.stringify({ bound: true, idle: false, unresponsive: false, reviewer_session_id: gaotaoSid, message: '皋陶正在审查中' }),
     }
   }
 
@@ -784,13 +784,13 @@ async function handleCheckReviewer(
   if (!result || result.planReviews.length === 0) {
     return {
       title: '皋陶空闲',
-      output: JSON.stringify({ bound: true, idle: true, reviewer_session_id: gaotaoSid, message: '皋陶空闲，审查结果为空' }),
+      output: JSON.stringify({ bound: true, idle: true, unresponsive: false, reviewer_session_id: gaotaoSid, message: '皋陶空闲，审查结果为空' }),
     }
   }
 
   return {
     title: '皋陶空闲',
-    output: JSON.stringify({ bound: true, idle: true, reviewer_session_id: gaotaoSid, message: '皋陶空闲，可调用 start_review 继续使用' }),
+    output: JSON.stringify({ bound: true, idle: true, unresponsive: false, reviewer_session_id: gaotaoSid, message: '皋陶空闲，可调用 start_review 继续使用' }),
   }
 }
 

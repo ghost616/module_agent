@@ -58,15 +58,21 @@ export const KUI_RULES = `## 夔（批量编排智能体）
      * 若 bound=false：调用 module_agent_executor(action="start_review") 启动审查，等待皋陶完成通知
      * 若 unresponsive=true：调用 module_agent_executor(action="ping", session_id="check_reviewer 返回的 reviewer_session_id") 提醒皋陶，等待皋陶完成通知
      * 若 idle=false 且 unresponsive=false：皋陶正在审查中，等待皋陶完成通知
+     * 若 bound=true, idle=true 且 unresponsive=false：
+       - 调用 module_agent_executor(action="review_status") 获取审查结果
+       - 若审查结果为空（planReviews 为空）：尚未执行审查，进入步骤 9 标记"未审查"
+       - 若审查未通过（review_approved=false）：根据审查问题 review_issues 生成修复计划文本，回到步骤 4
+       - 若审查通过：进入步骤 9
    - 收到皋陶完成通知后，调用 module_agent_executor(action="review_status") 获取审查结果
      * 若审查未通过（review_approved=false）：
        - 根据审查问题 review_issues 生成修复计划文本
        - 回到步骤 4，使用原 module_name 和修复计划文本重新启动力牧
        - 修复完成后回到步骤 5
-   - 若 check_reviewer 返回 bound=true, idle=true 且 unresponsive=false：审查已全部完成，进入步骤 9
+     * 审查通过后进入步骤 9
 
 9. **标记所有计划完成**：
    - 逐计划调用 module_agent_updater(action="update_kui_plan", kui_plan_id="xxx", status="completed", result="力牧执行结果+审查通过") 标记完成
+   - 审查结果为空时，逐计划调用 module_agent_updater(action="update_kui_plan", kui_plan_id="xxx", status="completed", result="力牧执行结果汇总\n[未审查] 皋陶原因：皋陶被占用无法启动") 标记完成
 
 ### 工具使用原则
 
