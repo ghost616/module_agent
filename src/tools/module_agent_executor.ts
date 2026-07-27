@@ -25,7 +25,7 @@ import { KUI_RULES } from '../lib/kui_rules.ts'
 import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
 import { setSessionWorkspace } from '../lib/session_workspace.ts'
 import { readAgentModelConfig, validateModelConfig } from '../lib/agent_model_config.ts'
-import { writeKuiPlan, hasUncompletedKuiPlan, getCompletedKuiPlans, deleteCompletedKuiPlans } from '../lib/kui_plan.ts'
+import { writeKuiPlan, readFengzhouPlans, hasUncompletedKuiPlan, getCompletedKuiPlans, deleteCompletedKuiPlans } from '../lib/kui_plan.ts'
 
 export function createModuleAgentExecutor(client: OpencodeClient) {
   return tool({
@@ -1145,21 +1145,44 @@ async function handleStartKui(
 
   const kui_plan_id = generateId('kui_plan')
 
+  // 去重：检测已有未完成的夔计划中是否包含相同的 development_plan
+  const existingPlans = await readFengzhouPlans(workspaceDir, fengzhouSessionId)
+  const existingPlanTexts = new Set(
+    existingPlans.filter(p => p.status !== 'completed').flatMap(p => p.plans.map(m => m.development_plan))
+  )
+  const dedupedPlans = plans.filter(p => !existingPlanTexts.has(p.development_plan))
+  const skippedPlans = plans.filter(p => existingPlanTexts.has(p.development_plan))
+
+  if (dedupedPlans.length === 0) {
+    return {
+      title: '计划已存在',
+      output: JSON.stringify({
+        status: 'ok',
+        message: `所有计划 [${skippedPlans.map(p => p.module_name).join(', ')}] 已有相同内容的未完成夔计划，跳过。`,
+        skipped_modules: skippedPlans.map(p => p.module_name),
+      }),
+    }
+  }
+
   const modelConfig = await readAgentModelConfig(workspaceDir)
 
   const boundKui = await getBoundKui(workspaceDir, fengzhouSessionId, client)
   if (boundKui) {
     await writeKuiPlan(workspaceDir, fengzhouSessionId, {
       kui_plan_id,
-      plans,
+      plans: dedupedPlans,
       status: 'pending',
       result: '',
     })
 
+    const skippedNote = skippedPlans.length > 0
+      ? ` 已有未完成计划的模块 [${skippedPlans.map(p => p.module_name).join(', ')}] 已跳过。`
+      : ''
+
     await client.session.promptAsync({
       path: { id: boundKui },
       body: {
-        parts: [{ type: 'text', text: '有新夔计划写入，请调用 module_agent_reader(action="read_kui_plan") 读取计划并执行。' }],
+        parts: [{ type: 'text', text: `有新夔计划写入，请调用 module_agent_reader(action="read_kui_plan") 读取计划并执行。${skippedNote}` }],
       },
     })
 
@@ -1167,7 +1190,14 @@ async function handleStartKui(
 
     return {
       title: '夔计划已写入，通知已有夔',
-      output: JSON.stringify({ kui_session_id: boundKui, kui_plan_id, reused: true, notice: CODE_CONSUMED_NOTICE }),
+      output: JSON.stringify({
+        kui_session_id: boundKui,
+        kui_plan_id,
+        reused: true,
+        written: dedupedPlans.length,
+        ...(skippedPlans.length > 0 ? { skipped: skippedPlans.map(p => p.module_name) } : {}),
+        notice: CODE_CONSUMED_NOTICE,
+      }),
     }
   }
 
@@ -1190,7 +1220,7 @@ async function handleStartKui(
   // 创建 KuiPlan 对象并写入文件
   await writeKuiPlan(workspaceDir, fengzhouSessionId, {
     kui_plan_id,
-    plans,
+    plans: dedupedPlans,
     status: 'pending',
     result: '',
   })

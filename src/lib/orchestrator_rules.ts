@@ -80,7 +80,7 @@ export const ORCHESTRATOR_RULES = `## 多模块协同开发框架 —— 风后�
 
 4. **夔批量编排模式询问**（仅在评估出多个模块需变更时执行）：
     - 若步骤 3 评估出需要变更的模块数量 > 1，向用户展示所有待变更模块的简要列表，然后生成确认码并询问："检测到涉及 [N] 个模块变更。是否启用夔批量编排模式？夔可自动完成依赖分析、顺序调度、力牧执行和皋陶审查，一次性完成整个流程。回复确认码 [xxx] 启用夔模式；回复其他内容则逐模块确认执行。"
-    - 用户输入正确确认码 → 调用 module_agent_executor(action="start_kui", plans=[{module_name:"xxx", development_plan:"..."}, ...]) 启动夔智能体。plans 为 {module_name, development_plan} 对象数组，kui_plan_id 由系统自动生成。启动后直接进入步骤 6。
+    - 用户输入正确确认码 → 调用 module_agent_executor(action="start_kui", plans=[{module_name:"xxx", development_plan:"..."}, ...]) 启动夔智能体。plans 为 {module_name, development_plan} 对象数组，kui_plan_id 由系统自动生成。注意：plans 在 start_kui 调用时已自动写入夔的任务队列，后续若有新增计划时不要重复传入已写入的计划。启动后直接进入步骤 6。
     - 用户输入不匹配或仅有 1 个模块需变更 → 进入步骤 5（逐模块确认与执行）。
 
 5. **逐模块确认与执行**（仅在 Build 模式下执行）：
