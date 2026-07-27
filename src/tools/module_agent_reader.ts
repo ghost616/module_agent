@@ -10,6 +10,7 @@ import { moduleAgentDir, CHANGE_HISTORY_FILE } from '../lib/constants.ts'
 import { exists, readText, readJson } from '../lib/fs.ts'
 import { readPlanFiles } from '../lib/plan_files.ts'
 import { getBoundLizhu, getBoundStarter, unbindLizhu, getKuiStarter } from '../lib/module_session_tracker.ts'
+import { isWorking } from '../lib/limu_monitor.ts'
 import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
 import { readFirstPendingKuiPlan, readKuiPlan, readFengzhouPlans } from '../lib/kui_plan.ts'
 
@@ -185,6 +186,17 @@ async function handleReadTestResults(directory: string, sessionId: string, args:
   }
   if (!lizhuSid) {
     return { title: '无绑定离朱', output: JSON.stringify({ status: 'ok', message: '当前无绑定的离朱测试报告' }) }
+  }
+
+  if (isWorking(lizhuSid)) {
+    return {
+      title: '离朱正在执行',
+      output: JSON.stringify({
+        status: 'error',
+        error: '离朱仍在运行中，请等待离朱发消息后再读取测试结果。',
+        lizhu_session_id: lizhuSid,
+      }),
+    }
   }
 
   const reportPath = join(wsDir, 'test_reports', `${lizhuSid}.json`)
