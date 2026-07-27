@@ -33,7 +33,7 @@ function checkPermission(mode: AgentMode, action: string): ToolResult | null {
     plan_complete: ['limu'],
     set_test_passed: ['limu'],
     delete_plan: ['fengzhou'],
-    review_complete: ['gaotao'],
+    review_complete: ['gaotao', 'kui'],
     get_pending_review: ['gaotao'],
     clean_completed: ['fengzhou'],
     create_review_plan: ['fengzhou'],

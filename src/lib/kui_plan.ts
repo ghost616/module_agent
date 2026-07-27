@@ -58,6 +58,19 @@ export async function getCompletedKuiPlans(workspaceDir: string, fengzhouSession
   return plans.filter(p => p.status === 'completed')
 }
 
+export async function appendPlanIdToRunningKuiPlan(
+  workspaceDir: string,
+  fengzhouSessionId: string,
+  planId: string,
+): Promise<void> {
+  const plans = await readFengzhouPlans(workspaceDir, fengzhouSessionId)
+  const running = plans.find(p => p.status === 'running')
+  if (!running) return
+  if (!running.plan_ids) running.plan_ids = []
+  running.plan_ids.push(planId)
+  await writeKuiPlan(workspaceDir, fengzhouSessionId, running)
+}
+
 export async function deleteCompletedKuiPlans(workspaceDir: string, fengzhouSessionId: string): Promise<void> {
   const plans = await readFengzhouPlans(workspaceDir, fengzhouSessionId)
   const remaining = plans.filter(p => p.status !== 'completed')

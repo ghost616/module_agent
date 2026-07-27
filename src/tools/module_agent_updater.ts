@@ -19,6 +19,7 @@ import { limuPlanGuard } from '../lib/limu_plan_guard.ts'
 import { readKuiPlan, writeKuiPlan } from '../lib/kui_plan.ts'
 import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
 import { getKuiStarter } from '../lib/module_session_tracker.ts'
+import { readAllMetadata, readPlan } from '../lib/development_plan.ts'
 
 export const moduleAgentUpdater = tool({
   description: `
@@ -203,6 +204,40 @@ async function handleUpdateKuiPlan(directory: string, sessionId: string, args: a
   const plan = await readKuiPlan(wsDir, fengzhouSessionId, kui_plan_id)
   if (!plan) {
     return { title: '夔计划不存在', output: JSON.stringify({ status: 'error', error: `夔计划 ${kui_plan_id} 不存在` }) }
+  }
+
+  if (status === 'completed' && plan.plan_ids && plan.plan_ids.length > 0) {
+    const allMeta = await readAllMetadata(wsDir)
+    const pendingComplete: { plan_id: string; module_name: string; session_id: string }[] = []
+    const pendingReview: { plan_id: string; module_name: string }[] = []
+
+    for (const pid of plan.plan_ids) {
+      const meta = allMeta.find(m => m.plan_id === pid)
+      if (!meta) continue
+
+      if (!meta.plan_completed) {
+        const detail = await readPlan(wsDir, pid)
+        pendingComplete.push({
+          plan_id: pid,
+          module_name: detail?.module_name ?? '',
+          session_id: detail?.session_id ?? '',
+        })
+      } else if (!meta.code_reviewed) {
+        const detail = await readPlan(wsDir, pid)
+        pendingReview.push({ plan_id: pid, module_name: detail?.module_name ?? '' })
+      }
+    }
+
+    if (pendingComplete.length > 0 || pendingReview.length > 0) {
+      return {
+        title: '执行计划未全部完成',
+        output: JSON.stringify({
+          status: 'error',
+          pending_complete: pendingComplete,
+          pending_review: pendingReview,
+        }),
+      }
+    }
   }
 
   if (status) plan.status = status

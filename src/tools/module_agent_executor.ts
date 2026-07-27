@@ -6,7 +6,7 @@ import { getAgentMode, setAgentMode } from '../lib/session_state.ts'
 import { validateConfirmationCode, CODE_CONSUMED_NOTICE, getPlanConfirmation, consumePlanConfirmation, generateId } from './verification_code.ts'
 import { recordActivity, getSessionIdle } from '../lib/limu_monitor.ts'
 import { isWorking } from '../lib/limu_monitor.ts'
-import { getModuleLimuSession, addModuleSession, markSessionChecked, clearSessionChecked, getBoundGaotao, bindGaotao, getBoundLizhu, bindLizhu, getAvailableLizhuSession, getAllUnboundLizhuSessions, addLizhuSession, bindLimuStarter, getLimuStarter, bindLizhuFengzhou, bindKui, getBoundKui, getKuiSubAgentsStatus } from '../lib/module_session_tracker.ts'
+import { getModuleLimuSession, addModuleSession, markSessionChecked, clearSessionChecked, getBoundGaotao, bindGaotao, getBoundLizhu, bindLizhu, getAvailableLizhuSession, getAllUnboundLizhuSessions, addLizhuSession, bindLimuStarter, getLimuStarter, bindLizhuFengzhou, bindKui, getBoundKui, getKuiSubAgentsStatus, getKuiStarter } from '../lib/module_session_tracker.ts'
 import { findModule } from '../lib/module_tree.ts'
 import { readAgentProfile } from '../lib/agent_profile.ts'
 import { readCodeConventions } from '../lib/code_conventions.ts'
@@ -25,7 +25,7 @@ import { KUI_RULES } from '../lib/kui_rules.ts'
 import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
 import { setSessionWorkspace } from '../lib/session_workspace.ts'
 import { readAgentModelConfig, validateModelConfig } from '../lib/agent_model_config.ts'
-import { writeKuiPlan, readFengzhouPlans, hasUncompletedKuiPlan, getCompletedKuiPlans, deleteCompletedKuiPlans } from '../lib/kui_plan.ts'
+import { writeKuiPlan, readFengzhouPlans, hasUncompletedKuiPlan, getCompletedKuiPlans, deleteCompletedKuiPlans, appendPlanIdToRunningKuiPlan } from '../lib/kui_plan.ts'
 
 export function createModuleAgentExecutor(client: OpencodeClient) {
   return tool({
@@ -319,6 +319,14 @@ async function handleStart(
 
     await recordMapping(workspaceDir, reusable, plan_id)
 
+    const callerMode = getAgentMode(directory, sessionID)
+    if (callerMode === 'kui') {
+      const kuiFengzhouSid = await getKuiStarter(workspaceDir, sessionID)
+      if (kuiFengzhouSid) {
+        await appendPlanIdToRunningKuiPlan(workspaceDir, kuiFengzhouSid, plan_id)
+      }
+    }
+
     await setSessionWorkspace(directory, reusable, workspaceName)
 
     await client.app.log({
@@ -432,6 +440,14 @@ async function handleStart(
   }, plan_summary, sessionID)
 
   await recordMapping(workspaceDir, sessionId, plan_id)
+
+  const callerMode = getAgentMode(directory, sessionID)
+  if (callerMode === 'kui') {
+    const kuiFengzhouSid = await getKuiStarter(workspaceDir, sessionID)
+    if (kuiFengzhouSid) {
+      await appendPlanIdToRunningKuiPlan(workspaceDir, kuiFengzhouSid, plan_id)
+    }
+  }
 
   await setSessionWorkspace(directory, sessionId, workspaceName)
 
@@ -1171,6 +1187,7 @@ async function handleStartKui(
     await writeKuiPlan(workspaceDir, fengzhouSessionId, {
       kui_plan_id,
       plans: dedupedPlans,
+      plan_ids: [],
       status: 'pending',
       result: '',
     })
@@ -1221,6 +1238,7 @@ async function handleStartKui(
   await writeKuiPlan(workspaceDir, fengzhouSessionId, {
     kui_plan_id,
     plans: dedupedPlans,
+    plan_ids: [],
     status: 'pending',
     result: '',
   })
