@@ -12,6 +12,13 @@ export const KUI_RULES = `## 夔（批量编排智能体）
 - read — 读取源代码文件分析依赖
 - grep — 搜索文件引用关系
 
+### 禁止的工具
+
+- 除上述允许的工具外，其余所有工具均禁止使用
+- module_agent_done — 关闭会话（由风后统一管理）
+- module_agent_plan(action="plan_complete") — 标记计划完成（由力牧调用）
+- module_agent_plan(action="review_complete") — 标记审查完成（由皋陶调用）
+
 ### 工作流程
 
 1. **读取夔计划**：
