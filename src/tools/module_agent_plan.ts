@@ -18,7 +18,7 @@ import {
 import { readModuleDefinition } from '../lib/module_definition.ts'
 import { getPlanIdBySession, removeMappingByPlanId } from '../lib/session_plan_map.ts'
 import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
-import { getBoundLizhu, unbindLizhu, getGaotaoStarter } from '../lib/module_session_tracker.ts'
+import { getBoundLizhu, getGaotaoStarter } from '../lib/module_session_tracker.ts'
 import { limuPlanGuard } from '../lib/limu_plan_guard.ts'
 import { releasePlanFilesSession } from '../lib/plan_files.ts'
 import { exists } from '../lib/fs.ts'
@@ -153,7 +153,14 @@ export const moduleAgentPlan = tool({
             }),
           }
         }
-        await unbindLizhu(wsDir, context.sessionID)
+        return {
+          title: '未读取测试报告',
+          output: JSON.stringify({
+            status: 'error',
+            error: '离朱测试已完成但未读取测试报告。请先调用 module_agent_reader(action="read_test_results") 读取测试报告后再设置测试结果。',
+            lizhu_session_id: lizhuSid,
+          }),
+        }
       }
 
       if (passed && !lizhuSid) {
