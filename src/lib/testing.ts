@@ -1,5 +1,4 @@
 import { join } from 'node:path'
-import { readdir, unlink, rmdir } from 'node:fs/promises'
 import { exec } from 'node:child_process'
 import { writeText, readJson, exists } from './fs.ts'
 import type { TestResult, AssertionResult, AssertionFailure } from './types.ts'
@@ -221,6 +220,7 @@ export async function cleanStaleTestData(
   workspaceDir: string,
   isAlive: (sessionId: string) => Promise<boolean>,
 ): Promise<TestDataCleanupStats> {
+  const { readdir, unlink, rmdir } = await import('node:fs/promises')
   const stats: TestDataCleanupStats = { test_reports: 0, test_results: 0, test_specs: 0 }
 
   // 清理 test_reports/

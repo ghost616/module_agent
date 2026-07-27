@@ -9,7 +9,8 @@ import { cleanStaleSessionWorkspaces } from './session_workspace.ts'
 import { cleanStaleBindings } from './workspace.ts'
 import { cleanStalePlanFilesForModule } from './plan_files.ts'
 import { readModuleTree } from './module_tree.ts'
-import { cleanStaleTestData, TestDataCleanupStats } from './testing.ts'
+import type { TestDataCleanupStats } from './testing.ts'
+import { cleanStaleTestData } from './testing.ts'
 
 type IsAlive = (sessionId: string) => Promise<boolean>
 
