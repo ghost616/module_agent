@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { readdir, unlink, rmdir } from 'node:fs/promises'
 import { exec } from 'node:child_process'
 import { writeText, readJson, exists } from './fs.ts'
 import type { TestResult, AssertionResult, AssertionFailure } from './types.ts'
@@ -208,4 +209,79 @@ export async function writeTestSpec(
     timestamp: new Date().toISOString(),
   }
   await writeText(path, JSON.stringify(record, null, 2))
+}
+
+export interface TestDataCleanupStats {
+  test_reports: number
+  test_results: number
+  test_specs: number
+}
+
+export async function cleanStaleTestData(
+  workspaceDir: string,
+  isAlive: (sessionId: string) => Promise<boolean>,
+): Promise<TestDataCleanupStats> {
+  const stats: TestDataCleanupStats = { test_reports: 0, test_results: 0, test_specs: 0 }
+
+  // 清理 test_reports/
+  const reportsDir = join(workspaceDir, 'test_reports')
+  if (await exists(reportsDir)) {
+    try {
+      const files = await readdir(reportsDir)
+      for (const f of files) {
+        if (!f.endsWith('.json')) continue
+        const sessionId = f.slice(0, -5)
+        if (!(await isAlive(sessionId))) {
+          try { await unlink(join(reportsDir, f)) } catch {}
+          stats.test_reports++
+        }
+      }
+    } catch {}
+  }
+
+  // 清理 test_results/
+  const resultsDir = join(workspaceDir, 'test_results')
+  if (await exists(resultsDir)) {
+    try {
+      const actions = await readdir(resultsDir)
+      for (const action of actions) {
+        const actionDir = join(resultsDir, action)
+        try {
+          const files = await readdir(actionDir)
+          let dirEmpty = true
+          for (const f of files) {
+            if (!f.endsWith('.json')) continue
+            const sessionId = f.slice(0, -5)
+            if (!(await isAlive(sessionId))) {
+              try { await unlink(join(actionDir, f)) } catch {}
+              stats.test_results++
+            } else {
+              dirEmpty = false
+            }
+          }
+          if (dirEmpty) {
+            try { await rmdir(actionDir) } catch {}
+          }
+        } catch {}
+      }
+    } catch {}
+  }
+
+  // 清理 test_specs/
+  const specsDir = join(workspaceDir, 'test_specs')
+  if (await exists(specsDir)) {
+    try {
+      const files = await readdir(specsDir)
+      for (const f of files) {
+        if (!f.endsWith('.json')) continue
+        const sessionId = f.slice(0, -5)
+        if (!(await isAlive(sessionId))) {
+          try { await unlink(join(specsDir, f)) } catch {}
+          stats.test_specs++
+        }
+      }
+    } catch {}
+  }
+
+  return stats
 }
