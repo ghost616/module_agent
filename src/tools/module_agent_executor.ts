@@ -168,6 +168,7 @@ function buildModuleAgentSystem(agentProfile: string, codeConventions: string, m
 3. **执行开发计划**：根据用户消息中的开发计划，进行代码编写、文件修改等操作。每次文件操作后必须先执行步骤 2 更新进度。
     - **重要：每次调用 write / edit 修改文件前，必须先调用 module_agent_updater_plan(action="check_active_plan", module_name="${moduleName}") 检测计划有效性。若返回 status="error"，说明计划已失效（已完成或被清理），必须立即停止所有文件修改操作并报告。**
    - **重要：每次调用 write / edit 修改已有文件前，必须先调用 module_agent_backup(action="backup", module_name="${moduleName}", file_path="<相对路径>") 备份该文件。新建文件无需备份。**
+   - **重要：当修改已有方法的输入参数或返回值类型（即方法签名变更）时，必须使用 grep 搜索项目中所有引用该方法的地方（包括测试文件），确保所有调用方同步更新。**
 
 4. **完成代码变更或调用 write / edit 工具后，若变更涉及以下情况才调用 module_agent_updater 记录**：
 
