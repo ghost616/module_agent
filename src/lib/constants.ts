@@ -362,7 +362,6 @@ export const planCompleteSchema = z.object({
 
 export const planSetTestPassedSchema = z.object({
   action: z.literal('set_test_passed'),
-  plan_id: z.string().describe('计划 ID'),
   test_passed: z.boolean().describe('测试是否通过'),
 })
 

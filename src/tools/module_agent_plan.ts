@@ -2,7 +2,7 @@ import { tool } from '@opencode-ai/plugin'
 import type { ToolResult } from '@opencode-ai/plugin'
 import { join } from 'node:path'
 import { readdir } from 'node:fs/promises'
-import { planReadMetadataSchema, planReadPlanSchema, planCompleteSchema, planDeleteSchema, planCreateReviewSchema, planSetTestPassedSchema, planConfirmPlanSchema } from '../lib/constants.ts'
+import { planReadMetadataSchema, planReadPlanSchema, planCompleteSchema, planDeleteSchema, planCreateReviewSchema, planConfirmPlanSchema } from '../lib/constants.ts'
 import { getAgentMode } from '../lib/session_state.ts'
 import {
   readAllMetadata,
@@ -133,12 +133,14 @@ export const moduleAgentPlan = tool({
     }
 
     if (action === 'set_test_passed') {
-      const validate = planSetTestPassedSchema.safeParse(args)
-      if (!validate.success) {
-        return { title: '参数错误', output: JSON.stringify({ status: 'error', error: validate.error.message }) }
+      const passed = !!(args.test_passed as boolean | undefined)
+      const planId = await getPlanIdBySession(wsDir, context.sessionID)
+      if (!planId) {
+        return {
+          title: '映射不存在',
+          output: JSON.stringify({ status: 'error', error: '当前会话未关联任何计划' }),
+        }
       }
-      const planId = validate.data.plan_id
-      const passed = validate.data.test_passed
 
       const lizhuSid = await getBoundLizhu(wsDir, context.sessionID)
       if (lizhuSid) {
