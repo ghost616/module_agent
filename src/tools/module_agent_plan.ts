@@ -18,7 +18,7 @@ import {
 import { readModuleDefinition } from '../lib/module_definition.ts'
 import { getPlanIdBySession, removeMappingByPlanId } from '../lib/session_plan_map.ts'
 import { resolveWorkspace, getWorkspaceDir } from '../lib/workspace.ts'
-import { getBoundLizhu, getGaotaoStarter } from '../lib/module_session_tracker.ts'
+import { getBoundLizhu, getGaotaoStarter, hasGaotaoBound } from '../lib/module_session_tracker.ts'
 import { limuPlanGuard } from '../lib/limu_plan_guard.ts'
 import { releasePlanFilesSession } from '../lib/plan_files.ts'
 import { exists } from '../lib/fs.ts'
@@ -338,6 +338,16 @@ export const moduleAgentPlan = tool({
     }
 
     if (action === 'review_complete') {
+      if (mode === 'kui') {
+        const hasGaotao = await hasGaotaoBound(wsDir, context.sessionID)
+        if (!hasGaotao) {
+          return {
+            title: '未绑定皋陶',
+            output: JSON.stringify({ status: 'error', error: '夔未绑定皋陶，请先调用 module_agent_executor(action="start_review") 启动皋陶审查。' }),
+          }
+        }
+      }
+
       const ok = await markReviewComplete(wsDir, planId)
       if (!ok) {
         return {

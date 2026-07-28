@@ -210,6 +210,11 @@ export async function isGaotaoBoundToFengzhou(
   return data.gaotao[fengzhouSessionId] === gaotaoSessionId
 }
 
+export async function hasGaotaoBound(workspaceDir: string, starterSessionId: string): Promise<boolean> {
+  const data = await readBindings(workspaceDir)
+  return starterSessionId in data.gaotao
+}
+
 export async function getGaotaoStarter(workspaceDir: string, gaotaoSessionId: string): Promise<string | null> {
   const data = await readBindings(workspaceDir)
   for (const [fsid, gsid] of Object.entries(data.gaotao)) {
