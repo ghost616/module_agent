@@ -943,7 +943,7 @@ async function handlePing(
     await client.session.promptAsync({
       path: { id: sessionId },
       body: {
-        parts: [{ type: 'text', text: `${prefix}：请尽快完成审查并通过 module_agent_updater_review(action="write_review", plan_id="xxx", review_summary="审查总结", review_issues=[...], review_approved=true|false) 写入审查结果，然后调用 module_agent_plan(action="review_complete", plan_id="xxx") 标记完成，再通过 module_agent_plan(action="get_pending_review") 获取下一个待审查计划。` }],
+        parts: [{ type: 'text', text: `${prefix}：请先调用 module_agent_plan(action="get_pending_review") 获取待审查计划。若返回计划，执行审查流程；若无，汇报"所有计划已审查完毕"后结束。` }],
       },
     })
 

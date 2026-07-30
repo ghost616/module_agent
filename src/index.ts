@@ -240,7 +240,7 @@ export const ModuleAgentPlugin: Plugin = async (ctx: PluginInput) => {
 
         if (input.tool === 'module_agent_plan') {
           const action = String(output.args?.action ?? '')
-          if (action !== 'confirm_plan' && action !== 'review_complete') {
+          if (action !== 'confirm_plan' && action !== 'review_complete' && action !== 'create_review_plan') {
             throw new Error(`夔仅允许 module_agent_plan 的 confirm_plan、review_complete 操作，当前: ${action}`)
           }
         }

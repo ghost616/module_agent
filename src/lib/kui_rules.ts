@@ -18,7 +18,7 @@ export const KUI_RULES = `## 夔（批量编排智能体）
 - module_agent_done — 关闭会话（由风后统一管理）
 - module_agent_plan(action="plan_complete") — 标记计划完成（由力牧调用）
 - module_agent_plan(action="review_complete") — 标记审查完成（由皋陶调用，夔在皋陶不可用时亦可调用）
-- module_agent_plan(action="create_review_plan") — 创建审查计划（仅供风后调用，夔启动皋陶审查请使用 module_agent_executor(action="start_review")）
+
 
 ### 严格禁止的行为
 

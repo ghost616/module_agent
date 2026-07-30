@@ -36,7 +36,7 @@ function checkPermission(mode: AgentMode, action: string): ToolResult | null {
     review_complete: ['gaotao', 'kui'],
     get_pending_review: ['gaotao'],
     clean_completed: ['fengzhou'],
-    create_review_plan: ['fengzhou'],
+    create_review_plan: ['fengzhou', 'kui'],
     confirm_plan: ['fengzhou', 'kui'],
   }
 
@@ -221,6 +221,13 @@ export const moduleAgentPlan = tool({
     }
 
     if (action === 'create_review_plan') {
+      if (mode === 'kui') {
+        return {
+          title: '请使用 start_review',
+          output: JSON.stringify({ status: 'error', error: '夔请先调用 module_agent_executor(action="check_reviewer") 检查皋陶绑定状态，再调用 module_agent_executor(action="start_review") 启动审查。' }),
+        }
+      }
+
       const validate = planCreateReviewSchema.safeParse(args)
       if (!validate.success) {
         return { title: '参数错误', output: JSON.stringify({ status: 'error', error: validate.error.message }) }
