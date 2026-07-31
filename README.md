@@ -25,6 +25,45 @@
 3. 风后完成初始化：工作空间 → 模型配置 → 规范检测 → 模块树 → 评估变更 → 开发计划
 4. 确认计划 → `confirm_plan` → 启动力牧（或启动夔批量编排） → 等待完成通知 → 离朱测试 → 皋陶审查 → Git 提交
 
+## 新手模式
+
+新手模式是一个可选的**需求引导机制**，当风后启用新手模式时，会在系统提示中注入需求评估规则，帮助用户将模糊需求逐维度明确后再进入开发。
+
+### 开启 / 关闭
+
+1. 风后绑定工作空间后（`workspace(action="create"|"bind")`），调用 `workspace(action="get_config")` 检测开发模式
+2. 若为空白 → 风后引导用户选择：
+   - 开启新手模式：`workspace(action="set_development_mode", development_mode="beginner")`
+   - 关闭（默认为老手模式）：`workspace(action="set_development_mode", development_mode="expert")`
+3. 用户也可随时告诉风后切换模式，由风后调用 `workspace(action="set_development_mode", ...)` 修改
+
+### 5 维需求评估
+
+新手模式下，风后收到用户需求后按以下5个维度逐条评估：
+
+| 维度 | 核心问题 |
+|------|---------|
+| 角色与场景（Who/Where） | 操作者的身份与权限？入口页面？ |
+| 动作原子性（What） | 核心操作可拆为哪些具体步骤？ |
+| 数据与范围（Which） | 数据来源、字段列表、排序与分页规则？ |
+| 边界与异常（What if） | 空状态、加载态、网络超时、并发冲突、极限输入？ |
+| 可量化验收（Measure） | 性能指标、可观测结果、状态变化？ |
+
+任一维度不通过则判定为需求模糊，进入引导流程。
+
+### 引导流程
+
+1. **前置探索**：搜索工程已有角色/权限定义和页面/路由入口
+2. **逐轮引导**（每次 1-2 维度）：提问 → 用户确认 → 可行性校验（对照现有代码）
+3. **可行性校验**：每轮确认后用 `module_agent_reader` + `read` 查看相关模块文件，判断现有代码能否支撑该需求，不可行则立即告知冲突点
+4. **汇总确认**：五轮完成后汇总所有需求要点 + 可行性校验结果，生成确认码让用户最终确认后进入正常开发流程
+
+### 技术原理
+
+- 配置存储：`.module_agent/.workspaces/<name>/config.json`，字段 `development_mode`
+- 注入方式：`experimental.chat.system.transform` hook，风后会话每次组装 system prompt 时自动拼入 `BEGINNER_TIPS`
+- 提示文本：`src/lib/beginner_tips.ts`
+
 ## 架构
 
 项目设置模式与开发模式互斥，不能在同一会话同时激活。
@@ -240,6 +279,7 @@
 ├── .workspaces/
 │   ├── index.json            # 工作空间索引
 │   └── <workspace>/
+│       ├── config.json            # 工作空间配置（development_mode）
 │       ├── development_plan/ # 开发计划
 │       ├── executions/       # 力牧执行记录
 │       ├── session_plan_map.json  # 会话 → 计划映射
@@ -287,7 +327,9 @@ src/
 │   ├── stale_cleanup.ts  # 失效数据清理
 │   ├── testing.ts        # 测试执行工具
 │   ├── kui_rules.ts      # 夔批量编排规则
-│   └── kui_plan.ts       # 夔计划管理
+│   ├── kui_plan.ts       # 夔计划管理
+│   ├── beginner_tips.ts  # 新手提示语
+│   └── workspace_config.ts # 工作空间配置
 └── tools/                # 23 个自定义工具实现
     ├── module_agent_admin.ts
     ├── module_agent_executor.ts
