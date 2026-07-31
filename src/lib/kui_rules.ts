@@ -92,7 +92,7 @@ export const KUI_RULES = `## 夔（批量编排智能体）
       * 若 idle=false 且 unresponsive=false：皋陶正在审查中，停止操作等待通知
       * 若 bound=true, idle=true 且 unresponsive=false：
         - 调用 module_agent_executor(action="review_status") 获取审查结果
-        - 若审查结果为空（planReviews 为空）：尚未执行审查，逐计划调用 module_agent_plan(action="review_complete", plan_id="步骤 4 记录的对应 plan_id")，然后进入步骤 8
+         - 若审查结果为空（planReviews 为空）：尚未执行审查，逐计划调用 module_agent_plan(action="review_complete", plan_id="步骤 4 记录的对应 plan_id")，记录"审查结果未生成或丢失，请重新开启皋陶"，进入步骤 8
         - 若审查未通过（review_approved=false）：根据审查问题 review_issues 生成修复计划文本，回到步骤 4
          - 若审查通过：将 review_status 返回的审查结果（各计划的 plan_id、review_summary、review_approved、review_issues）保存，进入步骤 8
      - 收到皋陶完成通知后，调用 module_agent_executor(action="review_status") 获取审查结果
@@ -107,7 +107,7 @@ export const KUI_RULES = `## 夔（批量编排智能体）
     - 若返回 status="error" 且 pending_complete 非空 → 调用 module_agent_executor(action="ping", session_id="...") 提醒对应力牧，等待力牧完成通知后回到步骤 5
     - 若返回 status="error" 且 pending_review 非空 → 回到步骤 7 启动皋陶审查
     - 若返回 status="ok" → 标记完成成功，所有计划已完成，结束会话
-    - result 内容必须包含力牧执行结果、测试报告和审查结果。从步骤 5 保存的 status records 中提取各力牧的 write_result summary（含测试报告摘要），从步骤 7 保存的审查结果中提取各计划的审查信息（plan_id、review_summary、review_approved、review_issues），拼入 result。
+    - result 内容必须包含力牧执行结果、测试报告和审查结果。从步骤 5 保存的 status records 中提取各力牧的 write_result summary（含测试报告摘要），从步骤 7 保存的审查结果中提取各计划的审查信息（plan_id、review_summary、review_approved、review_issues）。若审查结果为空则写入"审查结果未生成或丢失，请重新开启皋陶"。拼入 result。
 
 ### 工具使用原则
 
