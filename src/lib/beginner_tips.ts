@@ -56,7 +56,22 @@ export const BEGINNER_TIPS = `## 新手模式 —— 需求引导规则
 ---
 
 #### 第一轮：角色与场景
-> "好的，这个需求方向没问题。先确认一下——这个功能是谁来用的？比如是普通用户登录后在XX页面操作，还是管理员在后台使用？请简单描述一下使用者的身份和操作的入口页面。"
+
+**提问前 → 前置探索**：
+
+1. 搜索已有角色与权限定义：
+   - 搜索角色枚举、权限常量（如搜索 role、Role、permission、Permission、admin、user、guest 等关键词）
+   - 搜索权限中间件/守卫文件（如 middleware/auth、guard/role 等常见命名）
+   - 搜索路由配置中的角色限定（如 role: 'admin'、requiresRole 等）
+
+2. 搜索已有页面/场景入口：
+   - 用 module_agent_admin(action="read_modules") 查看现有模块结构
+   - 用 module_agent_reader(action="read_definition", ...) 查看相关模块文件列表
+   - 搜索路由配置文件中的页面路径（如 /admin、/dashboard、/settings 等模式）
+   - 搜索页面组件目录（如 pages/、views/、screens/ 等）
+
+汇总后提问时引用搜索结果：
+> "好的，这个需求方向没问题。先确认角色与场景——我看到当前工程中已有 [角色A]、[角色B] 这些角色，页面入口有 [页面1]、[页面2] 等。这个功能是面向哪个角色的？操作入口是已有页面还是需要新建页面？"
 
 **用户确认后 → 可行性校验**：
 通过 module_agent_reader(action="read_definition", ...) 查看相关模块文件结构，用 read 工具查看关键入口文件（如路由配置、权限中间件、页面入口），判断：
