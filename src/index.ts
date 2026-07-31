@@ -28,8 +28,10 @@ import { clearActivity, recordActivity, isWorking } from './lib/limu_monitor.ts'
 import { checkLimuPlanActive } from './lib/limu_plan_guard.ts'
 import { validateLimuBashCommand } from './lib/limu_bash_guard.ts'
 import { validateLizhuEnvCommand } from './lib/lizhu_env_guard.ts'
-import { resolveWorkspace, getWorkspaceDir } from './lib/workspace.ts'
+import { resolveWorkspace, getWorkspaceDir, getBoundWorkspace } from './lib/workspace.ts'
 import { getBoundStarter, getBoundLizhu, getLimuStarter, getGaotaoStarter, getKuiStarter, getModuleNameBySession, getKuiSubAgentsStatus } from './lib/module_session_tracker.ts'
+import { getWorkspaceConfig } from './lib/workspace_config.ts'
+import { BEGINNER_TIPS } from './lib/beginner_tips.ts'
 
 export const ModuleAgentPlugin: Plugin = async (ctx: PluginInput) => {
   await ctx.client.app.log({
@@ -260,6 +262,17 @@ export const ModuleAgentPlugin: Plugin = async (ctx: PluginInput) => {
       if (mode === 'limu' || mode === 'gaotao' || mode === 'lizhu' || mode === 'kui') {
         recordActivity(sessionId)
       }
+    },
+
+    'experimental.chat.system.transform': async (input, output) => {
+      if (!input.sessionID) return
+      const mode = getAgentMode(ctx.directory, input.sessionID)
+      if (mode !== 'fengzhou') return
+      const wsName = await getBoundWorkspace(ctx.directory, input.sessionID)
+      if (!wsName) return
+      const config = await getWorkspaceConfig(ctx.directory, wsName)
+      if (config.development_mode !== 'beginner') return
+      output.system.push(BEGINNER_TIPS)
     },
 
     event: async ({ event }) => {

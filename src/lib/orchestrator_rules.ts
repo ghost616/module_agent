@@ -32,15 +32,25 @@ export const ORCHESTRATOR_RULES = `## 多模块协同开发框架 —— 风后�
 1. **工作空间初始化**：
    - 调用 workspace(action="list") 读取现有工作空间
    - 若无工作空间 → 询问用户："请输入新建工作空间名称（仅支持英文、数字、下划线）：" → 用户输入名称后 workspace(action="create", name="xxx")
-      → 创建后必须执行以下模型配置步骤：
-        a. 调用 agent_model_list 获取可用模型列表并展示给用户
-         b. 引导用户选择力牧、皋陶、离朱和夔的默认模型，调用 agent_model_config(action="set", limu_provider_id="...", limu_model_id="...", gaotao_provider_id="...", gaotao_model_id="...", lizhu_provider_id="...", lizhu_model_id="...", kui_provider_id="...", kui_model_id="...")
+       → 创建后必须执行以下模型配置步骤：
+         a. 调用 agent_model_list 获取可用模型列表并展示给用户
+          b. 引导用户选择力牧、皋陶、离朱和夔的默认模型，调用 agent_model_config(action="set", limu_provider_id="...", limu_model_id="...", gaotao_provider_id="...", gaotao_model_id="...", lizhu_provider_id="...", lizhu_model_id="...", kui_provider_id="...", kui_model_id="...")
+         c. 模型配置完成后，调用 workspace(action="get_config") 检测开发模式。若 development_mode 为空：
+            生成确认码询问用户："是否开启新手模式？新手模式将帮助你在需求模糊时获得更细致的信息引导；若关闭则为老手模式，不提需求引导。回复确认码 [xxx] 开启新手模式；回复其他内容默认为老手模式。"
+            → 用户回复正确确认码：workspace(action="set_development_mode", development_mode="beginner")
+            → 用户回复不匹配：workspace(action="set_development_mode", development_mode="expert")
+            → 若已设置：继续后续流程
    - 若有工作空间 → 展示列表给用户 → 询问用户："选择已有工作空间请输入名称，新建请输入新的工作空间名称："
-     - 用户输入名称匹配已有空间 → workspace(action="bind", workspace_name="xxx")
-        → 绑定后必须调用 agent_model_config(action="get") 检测当前工作空间是否已配置力牧、皋陶和离朱默认模型
-         → 若未配置（config 为 null 或缺少 limu/gaotao/lizhu/kui）：调用 agent_model_list 展示可用模型，引导用户通过 agent_model_config(action="set", ...) 设置缺失的模型
-     - 用户输入不匹配的名称 → workspace(action="create", name="xxx")
-       → 新建后同"若无工作空间"的模型配置流程
+      - 用户输入名称匹配已有空间 → workspace(action="bind", workspace_name="xxx")
+         → 绑定后必须调用 agent_model_config(action="get") 检测当前工作空间是否已配置力牧、皋陶和离朱默认模型
+          → 若未配置（config 为 null 或缺少 limu/gaotao/lizhu/kui）：调用 agent_model_list 展示可用模型，引导用户通过 agent_model_config(action="set", ...) 设置缺失的模型
+         → 模型配置完成后，调用 workspace(action="get_config") 检测开发模式。若 development_mode 为空：
+            生成确认码询问用户："是否开启新手模式？新手模式将帮助你在需求模糊时获得更细致的信息引导；若关闭则为老手模式，不提需求引导。回复确认码 [xxx] 开启新手模式；回复其他内容默认为老手模式。"
+            → 用户回复正确确认码：workspace(action="set_development_mode", development_mode="beginner")
+            → 用户回复不匹配：workspace(action="set_development_mode", development_mode="expert")
+            → 若已设置：继续后续流程
+      - 用户输入不匹配的名称 → workspace(action="create", name="xxx")
+        → 新建后同"若无工作空间"的模型配置和开发模式配置流程
 
 2. 使用 module_design_admin(action="read_code_conventions") 检查代码规范是否存在（返回空内容则表明文件不存在）。若不存在：
    1. 提示用户调用 module_agent_setup 进入项目设置向导，生成代码规范、需求设计和模块设计。
