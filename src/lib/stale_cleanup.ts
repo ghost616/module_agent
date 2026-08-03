@@ -9,8 +9,6 @@ import { cleanStaleSessionWorkspaces } from './session_workspace.ts'
 import { cleanStaleBindings } from './workspace.ts'
 import { cleanStalePlanFilesForModule } from './plan_files.ts'
 import { readModuleTree } from './module_tree.ts'
-import type { TestDataCleanupStats } from './testing.ts'
-import { cleanStaleTestData } from './testing.ts'
 
 type IsAlive = (sessionId: string) => Promise<boolean>
 
@@ -42,7 +40,6 @@ export interface WorkspaceCleanupStats {
   kui_bindings: number
   executions: number
   review_results: number
-  test_data: TestDataCleanupStats
 }
 
 export async function cleanWorkspaceStale(
@@ -64,7 +61,6 @@ export async function cleanWorkspaceStale(
   const kui_bindings = await cleanStaleKuiMap(workspaceDir, isAlive)
   const executions = await cleanStaleExecutions(workspaceDir, isAlive)
   const review_results = await cleanStaleReviewResults(workspaceDir, isAlive)
-  const test_data = await cleanStaleTestData(workspaceDir, isAlive)
 
   return {
     plans: deletedPlanIds.length,
@@ -77,7 +73,6 @@ export async function cleanWorkspaceStale(
     kui_bindings,
     executions,
     review_results,
-    test_data,
   }
 }
 

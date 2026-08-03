@@ -416,19 +416,6 @@ export const planArgsSchema = z.discriminatedUnion('action', [
 // Zod Schema: module_agent_testing
 // ============================================================
 
-export const testInterfaceSchema = z.object({
-  action: z.literal('interface'),
-  method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']).describe('HTTP 请求方法'),
-  url: z.string().describe('请求 URL'),
-  headers: z.record(z.string(), z.string()).optional().describe('请求头'),
-  body: z.union([z.string(), z.record(z.string(), z.any())]).optional().describe('请求体（对象自动序列化为 JSON，字符串原样发送）'),
-  timeout: z.number().optional().default(30000).describe('超时时间（ms），默认 30 秒'),
-  expected_status: z.number().optional().describe('期望的 HTTP 状态码（传入则自动断言）'),
-  expected_body_contains: z.string().optional().describe('期望响应体包含的字符串（传入则自动断言）'),
-  expected_headers: z.record(z.string(), z.string()).optional().describe('期望的响应头（传入则自动断言）'),
-  module_name: z.string().optional().describe('所属模块名称'),
-})
-
 export const testWriteSpecSchema = z.object({
   action: z.literal('write_spec'),
   content: z.string().describe('待测试功能说明（Markdown 格式，描述需要测试的功能场景）'),
@@ -444,7 +431,6 @@ export const testCheckPlaywrightSchema = z.object({
 })
 
 export const testingArgsSchema = z.discriminatedUnion('action', [
-  testInterfaceSchema,
   testWriteSpecSchema,
   testWriteReportSchema,
   testCheckPlaywrightSchema,

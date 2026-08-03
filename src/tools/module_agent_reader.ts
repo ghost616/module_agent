@@ -17,7 +17,7 @@ import { readFirstPendingKuiPlan, readKuiPlan, readFengzhouPlans } from '../lib/
 export const moduleAgentReader = tool({
   description: '读取模块元数据文件，供风后在评估变更、力牧在执行时使用，离朱读取测试说明和结果。',
   args: {
-    action: tool.schema.enum(['read_spec', 'read_spec_headings', 'read_spec_section', 'read_definition', 'read_descriptions', 'read_history', 'read_dirs', 'read_plan_files', 'read_test_results', 'read_test_specs', 'read_lizhu_results', 'read_kui_plan', 'read_all_kui_plans', 'read_kui_plan_detail']).describe('读取目标文件：read_definition 获取模块文件路径列表，read_descriptions 按路径获取文件功能说明'),
+    action: tool.schema.enum(['read_spec', 'read_spec_headings', 'read_spec_section', 'read_definition', 'read_descriptions', 'read_history', 'read_dirs', 'read_plan_files', 'read_test_results', 'read_test_specs', 'read_kui_plan', 'read_all_kui_plans', 'read_kui_plan_detail']).describe('读取目标文件：read_definition 获取模块文件路径列表，read_descriptions 按路径获取文件功能说明'),
     module_name: tool.schema.string().optional().describe('模块唯一标识名称（read_test_results / read_test_specs / read_kui_plan / read_all_kui_plans / read_kui_plan_detail 时无需传入）'),
     paths: tool.schema.array(tool.schema.string()).optional().describe('read_descriptions：要查询说明的文件路径列表'),
     from: tool.schema.string().optional().describe('read_history：起始时间 ISO 8601（含）'),
@@ -43,10 +43,10 @@ export const moduleAgentReader = tool({
     const directory = context.directory
     const action = args.action as string
 
-    if (mode === 'lizhu' && action !== 'read_test_specs' && action !== 'read_lizhu_results') {
+    if (mode === 'lizhu' && action !== 'read_test_specs') {
       return {
         title: '权限不足',
-        output: JSON.stringify({ status: 'error', error: `module_agent_reader action="${action}" 仅供风后、力牧或皋陶调用，离朱仅可使用 read_test_specs 和 read_lizhu_results。` }),
+        output: JSON.stringify({ status: 'error', error: `module_agent_reader action="${action}" 仅供风后、力牧或皋陶调用，离朱仅可使用 read_test_specs。` }),
       }
     }
 
@@ -63,7 +63,6 @@ export const moduleAgentReader = tool({
 
     if (action === 'read_test_results') return handleReadTestResults(directory, context.sessionID, args)
     if (action === 'read_test_specs') return handleReadTestSpecs(directory, context.sessionID)
-    if (action === 'read_lizhu_results') return handleReadLizhuResults(directory, context.sessionID)
 
     if (action === 'read_kui_plan') return handleReadKuiPlan(directory, context.sessionID, args)
     if (action === 'read_all_kui_plans') return handleReadAllKuiPlans(directory, context.sessionID)
@@ -217,47 +216,6 @@ async function handleReadTestResults(directory: string, sessionId: string, args:
   return {
     title: '测试报告',
     output: JSON.stringify(report),
-  }
-}
-
-async function handleReadLizhuResults(directory: string, sessionId: string): Promise<ToolResult> {
-  let ws = await resolveWorkspace(directory, sessionId)
-  if (!ws) {
-    return { title: '无工作空间', output: JSON.stringify({ status: 'error', error: '未关联工作空间' }) }
-  }
-  const wsDir = getWorkspaceDir(directory, ws)
-
-  const mode = getAgentMode(directory, sessionId)
-  if (mode !== 'lizhu') {
-    return { title: '权限不足', output: JSON.stringify({ status: 'error', error: 'read_lizhu_results 仅供离朱调用。' }) }
-  }
-
-  const starter = await getBoundStarter(wsDir, sessionId)
-  if (!starter) {
-    return { title: '未绑定启动者', output: JSON.stringify({ status: 'error', error: '离朱未绑定启动者，无法读取测试结果。' }) }
-  }
-
-  const results: Record<string, any[]> = {}
-  const actions = ['unit', 'interface', 'e2e', 'compile']
-  for (const action of actions) {
-    const dir = join(wsDir, 'test_results', action)
-    const path = join(dir, `${sessionId}.json`)
-    if (await exists(path)) {
-      try {
-        results[action] = await readJson(path)
-      } catch {
-        continue
-      }
-    }
-  }
-
-  if (Object.keys(results).length === 0) {
-    return { title: '无测试结果', output: JSON.stringify({ status: 'ok', message: '暂无测试结果' }) }
-  }
-
-  return {
-    title: '测试结果',
-    output: JSON.stringify(results),
   }
 }
 

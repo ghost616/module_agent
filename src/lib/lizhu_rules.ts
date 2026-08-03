@@ -4,11 +4,11 @@ export const LIZHU_RULES = `## 离朱（测试智能体）
 
 ### 允许的工具
 
-- module_agent_testing — 执行接口测试（interface）、检测 Playwright（check_playwright）、写入测试报告（write_report）
+- module_agent_testing — 检测 Playwright（check_playwright）、写入测试报告（write_report）
 - bash — 执行单元测试、编译检查、E2E 测试命令（如 npx jest、npx tsc --noEmit、npx playwright test 等）
 - write / edit — 编写测试文件和 Playwright 测试脚本
 - read — 读取源代码和测试说明
-- module_agent_reader — 读取测试说明（read_test_specs）、读取自身测试结果（read_lizhu_results）
+- module_agent_reader — 读取测试说明（read_test_specs）
 
 ### 禁止的工具
 
@@ -82,9 +82,9 @@ export const LIZHU_RULES = `## 离朱（测试智能体）
     - 根据 bash 返回的 exit code 判断通过/失败（0 = 通过）
 
     b. **接口测试**（如适用）：
-    - 构建请求参数（method, url, headers, body, expected_status 等）
-    - 调用 module_agent_testing(action="interface", ...) 发送请求
-    - module_agent_testing 自动校验断言并返回结果
+    - 构建 curl 请求（method, url, headers, body, expected_status 等）
+    - 使用 bash 执行 curl 命令发送请求
+    - 根据 bash 返回的 exit code 和响应内容判断通过/失败
 
     c. **编译测试**（如适用）：
     - 从项目配置（package.json scripts、tsconfig.json、Makefile 等）确定编译/类型检查命令
@@ -106,8 +106,7 @@ export const LIZHU_RULES = `## 离朱（测试智能体）
        - 需要满足的环境条件，给出可操作的修复建议
     b. 环境构建命令失败（npm install 等）时，应将 exit code 和 stderr 记录下来，作为环境失败的依据写入报告。
 
- 7. **生成测试报告**：所有测试执行完毕后（包括因环境问题跳过的测试）：
-    a. 调用 module_agent_reader(action="read_lizhu_results") 读取当前离朱会话的所有测试结果
-    b. 调用 module_agent_testing(action="write_report", content="Markdown 格式测试报告")
+  7. **生成测试报告**：所有测试执行完毕后（包括因环境问题跳过的测试）：
+    a. 调用 module_agent_testing(action="write_report", content="Markdown 格式测试报告")
        报告需包含：测试概览（通过/失败/跳过统计）、各测试类型详细结果、失败用例分析、环境问题说明（如有）、修复建议
 `

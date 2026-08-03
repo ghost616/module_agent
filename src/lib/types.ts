@@ -154,48 +154,6 @@ export interface ExecutorStatusPending {
 
 export type ExecutorStatusResult = ExecutorStatusFinished | ExecutorStatusPending
 
-// ============================================================
-// module_agent_testing 结果结构
-// ============================================================
-
-export interface AssertionFailure {
-  type: 'status' | 'body_contains' | 'header'
-  expected: any
-  actual: any
-  key?: string
-}
-
-export interface AssertionResult {
-  passed: number
-  failed: number
-  failures: AssertionFailure[]
-}
-
-export interface TestResult {
-  session_id: string
-  action: 'unit' | 'interface' | 'e2e' | 'compile'
-  command?: string
-  request?: {
-    method: string
-    url: string
-    headers: Record<string, string>
-    body?: string
-  }
-  response?: {
-    status_code: number
-    headers: Record<string, string>
-    body: string
-  }
-  exit_code?: number
-  stdout?: string
-  stderr?: string
-  duration_ms: number
-  assertions?: AssertionResult
-  summary?: Record<string, number>
-  truncated?: boolean
-  timestamp: string
-}
-
 export interface TestSpec {
   session_id: string
   content: string
