@@ -1,8 +1,6 @@
 import { join } from 'node:path'
 import { exists, readJson, writeText } from './fs.ts'
 
-const MAX_CORRECTIONS = 50
-
 export interface CorrectionEntry {
   content: string
   timestamp: string
@@ -36,11 +34,6 @@ export async function appendCorrection(workspaceDir: string, content: string): P
   }
 
   corrections.push({ content, timestamp: new Date().toISOString() })
-
-  // FIFO: keep only the latest MAX_CORRECTIONS entries
-  while (corrections.length > MAX_CORRECTIONS) {
-    corrections.shift()
-  }
 
   await writeText(getPath(workspaceDir), JSON.stringify({ corrections }, null, 2))
 }

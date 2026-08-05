@@ -139,13 +139,13 @@
 |---|---|---|---|---|
 | 岐伯 | 允许（设置阶段可修改项目文件） | 允许 | 允许 | 仅限 `module_design_admin` |
 | 隶首 | **throw 阻断** | 允许 | 允许 | 允许（归类专用工具 + `module_agent_admin(read_modules)`） |
-| 风后 | **throw 阻断** | 允许 | 允许 | 允许（编排调度用） |
+| 风后 | **throw 阻断** | 允许 | 允许 | 允许（编排调度用，含 `module_agent_correction` 记录用户纠正） |
 | 夔 | **throw 阻断** | 允许 | 允许（仅 read/grep） | 允许（仅限 module_agent_executor[start/status/ping/check_reviewer/start_review/review_status] + module_agent_reader[read_kui_plan/read_all_kui_plans/read_kui_plan_detail/read_plan_files/read_definition/read_descriptions] + module_agent_updater[update_kui_plan] + module_agent_plan[confirm_plan]） |
 | 力牧 | 需 `checkLimuPlanActive` 通过 | 需计划检测 + 命令白名单过滤（仅允许文件删除/重命名/移动） | 需计划检测通过 | 需 `limuPlanGuard` 通过 |
 | 皋陶 | **throw 阻断** | 允许 | 允许 | 仅限 `module_agent_plan` + `module_agent_updater_review` + `module_agent_reader` + `module_agent_backup` |
 | 离朱 | 允许 | 允许（需检查 starter 绑定 + `.lizhu_env` 目录限制） | 允许 | 仅限 `module_agent_testing` + `module_agent_reader` |
 
-## 工具清单（23 个自定义工具）
+## 工具清单（24 个自定义工具）
 
 ### 编排调度
 
@@ -189,6 +189,7 @@
 | `agent_model_list` | 获取当前配置的模型提供方和可用模型列表 |
 | `agent_model_config` | 管理力牧/皋陶/离朱的默认模型配置（仅风后可调用） |
 | `module_agent_testing` | 代码测试工具：单元测试 / 接口测试 / E2E 测试 / 写入测试说明 / 写入测试报告 |
+| `module_agent_correction` | 管理风后的用户纠正与反馈记录（add / read / remove） |
 
 ## 工作流程
 
@@ -243,6 +244,15 @@
     c. 用户确认 → 执行 `git add` / `git commit` / `git push`
 12. **关闭力牧、皋陶和空闲的离朱**：`module_agent_plan(action="clean_completed")` → `module_agent_done`
 
+### 纠正与反馈
+
+风后在生成计划前会读取历史纠正记录避免重犯。用户纠正风后时，风后先核实再记录：
+
+1. 计划前 → `module_agent_correction(action="read")` 读取历史纠正
+2. 用户指正 → 风后读代码核实 → `module_agent_correction(action="add", content="...")` 记录
+3. 删除 → `module_agent_correction(action="remove", index=N)` 按索引删除
+4. 内容与最新一条相同时自动跳过写入
+
 ### 批量编排（夔）
 
 风后委托夔批量管理多模块开发计划，夔按以下流程自动执行：
@@ -287,6 +297,7 @@
 │       ├── test_specs/       # 测试说明
 │       ├── lizhu_results/    # 离朱测试结果
 │       └── kui_plans/        # 夔批量计划
+│       └── corrections.json   # 用户纠正与反馈记录
 ```
 
 ## 项目结构
@@ -326,6 +337,7 @@ src/
 │   ├── code_conventions.ts # 代码规范
 │   ├── stale_cleanup.ts  # 失效数据清理
 │   ├── testing.ts        # 测试执行工具
+│   ├── corrections.ts     # 纠正记录管理
 │   ├── kui_rules.ts      # 夔批量编排规则
 │   ├── kui_plan.ts       # 夔计划管理
 │   ├── beginner_tips.ts  # 新手提示语
@@ -352,6 +364,7 @@ src/
     ├── agent_model_config.ts
     ├── agent_model_list.ts
     ├── testing.ts
+    ├── correction.ts
     ├── verification_code.ts
     ├── workspace.ts
     └── ...
