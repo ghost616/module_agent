@@ -23,6 +23,7 @@ import { createModuleAgentCleanup } from './tools/module_agent_cleanup.ts'
 import { createAgentModelList } from './tools/agent_model_list.ts'
 import { createAgentModelConfig } from './tools/agent_model_config.ts'
 import { testRunner } from './tools/testing.ts'
+import { correctionTool } from './tools/correction.ts'
 import { initSessionState, getAgentMode } from './lib/session_state.ts'
 import { clearActivity, recordActivity, isWorking } from './lib/limu_monitor.ts'
 import { checkLimuPlanActive } from './lib/limu_plan_guard.ts'
@@ -78,6 +79,7 @@ export const ModuleAgentPlugin: Plugin = async (ctx: PluginInput) => {
       agent_model_list: agentModelList,
       agent_model_config: agentModelConfig,
       module_agent_testing: testRunner,
+      module_agent_correction: correctionTool,
     },
 
     // ============================================================
@@ -98,6 +100,7 @@ export const ModuleAgentPlugin: Plugin = async (ctx: PluginInput) => {
         'agent_model_list',
         'agent_model_config',
         'module_agent_testing',
+        'module_agent_correction',
       ]
       if (customTools.includes(input.type)) {
         output.status = 'allow'

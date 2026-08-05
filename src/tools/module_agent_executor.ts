@@ -605,7 +605,6 @@ async function handleStatus(
   workspaceDir: string,
   args: { module_name: string; session_id: string },
 ): Promise<ToolResult> {
-  await new Promise(resolve => setTimeout(resolve, 10000))
   const { module_name, session_id } = args
 
   const mod = await findModule(directory, module_name)
@@ -711,7 +710,6 @@ async function handleGaotaoStatus(
   workspaceDir: string,
   fengzhouSessionId: string,
 ): Promise<ToolResult> {
-  await new Promise(resolve => setTimeout(resolve, 10000))
   const gaotaoSid = await getBoundGaotao(workspaceDir, fengzhouSessionId, client)
   if (!gaotaoSid) {
     return {

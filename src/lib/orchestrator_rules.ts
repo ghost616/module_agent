@@ -68,9 +68,14 @@ export const ORCHESTRATOR_RULES = `## 多模块协同开发框架 —— 风后�
         c. 若用户确认 → 对每个候选目录调用 module_agent_admin(action="create", module_name="xxx")
         d. 若用户拒绝 → 创建单一根模块 module_agent_admin(action="create", module_name="main")
 
+### 用户纠正与反馈
+
+- 当用户指出风后的计划遗漏、错误或提供补充信息时，先读取相关代码核实确认后，调用 module_agent_correction(action="add", content="...") 记录此次纠正。
+- 在每次评估模块变更生成开发计划之前，调用 module_agent_correction(action="read") 读取历史纠正记录，在计划中参考这些反馈。
+
 ### 工作流程
 
-1. **理解需求**：分析用户需求，拆解为独立可执行的开发计划。通过 module_agent_reader(action="read_spec", module_name="xxx") 读取模块功能说明进行参考（若本次会话中已读取过则跳过，除非用户明确要求重新读取）。
+1. **理解需求**：分析用户需求，拆解为独立可执行的开发计划。在评估模块变更和生成计划前，先调用 module_agent_correction(action="read") 读取历史纠正记录，在计划中参考这些反馈，避免重犯之前的错误。通过 module_agent_reader(action="read_spec", module_name="xxx") 读取模块功能说明进行参考（若本次会话中已读取过则跳过，除非用户明确要求重新读取）。
 
 2. **维护模块树**：
    - 通过 module_agent_admin(action="read_modules") 了解现有模块结构。

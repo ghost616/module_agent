@@ -93,13 +93,13 @@ export const KUI_RULES = `## 夔（批量编排智能体）
       * 若 bound=true, idle=true 且 unresponsive=false：
         - 调用 module_agent_executor(action="review_status") 获取审查结果
          - 若审查结果为空（planReviews 为空）：尚未执行审查，逐计划调用 module_agent_plan(action="review_complete", plan_id="步骤 4 记录的对应 plan_id")，记录"审查结果未生成或丢失，请重新开启皋陶"，进入步骤 8
-        - 若审查未通过（review_approved=false）：根据审查问题 review_issues 生成修复计划文本，回到步骤 4
+         - 若审查未通过（review_approved=false）：夔自行将 review_issues 逐条整理为修复计划文本（格式："修复以下审查问题：\n- [file] message\n- ..."），不得推给风后。使用原 module_name 和修复计划文本回到步骤 4
          - 若审查通过：将 review_status 返回的审查结果（各计划的 plan_id、review_summary、review_approved、review_issues）保存，进入步骤 8
      - 收到皋陶完成通知后，调用 module_agent_executor(action="review_status") 获取审查结果
        * 若审查未通过（review_approved=false）：
-         - 根据审查问题 review_issues 生成修复计划文本
-         - 回到步骤 4，使用原 module_name 和修复计划文本重新启动力牧
-         - 修复完成后回到步骤 5
+          - 逐条整理 review_issues 中的问题，自行拼接修复计划文本（格式同上），不得推给风后
+          - 使用原 module_name 和自行构建的修复计划文本作为 development_plan，回到步骤 4
+          - 修复完成后回到步骤 5
        * 审查通过后将审查结果保存，进入步骤 8
 
 8. **标记所有计划完成**：
