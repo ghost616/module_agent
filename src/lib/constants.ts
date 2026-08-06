@@ -385,7 +385,6 @@ export const planCleanCompletedSchema = z.object({
 
 export const planCreateReviewSchema = z.object({
   action: z.literal('create_review_plan'),
-  plan_id: z.string().describe('计划 ID，由风后通过 generate_id(id_type="plan") 生成'),
   review_description: z.string().describe('审查范围/目的描述（存为 development_plan）'),
   module_name: z.string().optional().describe('要审查的模块名称，传入后自动解析该模块下所有文件'),
   file_paths: z.array(z.string()).optional().describe('要审查的文件路径列表（跨模块或指定文件）'),
