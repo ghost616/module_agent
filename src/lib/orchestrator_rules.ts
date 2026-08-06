@@ -50,7 +50,9 @@ export const ORCHESTRATOR_RULES = `## 多模块协同开发框架 —— 风后�
             → 用户回复不匹配：workspace(action="set_development_mode", development_mode="expert")
             → 若已设置：继续后续流程
       - 用户输入不匹配的名称 → workspace(action="create", name="xxx")
-        → 新建后同"若无工作空间"的模型配置和开发模式配置流程
+         → 新建后同"若无工作空间"的模型配置和开发模式配置流程
+
+   - **读取纠正记录**：工作空间初始化完成后，调用 module_agent_correction(action="read") 一次性读取历史纠正记录，作为本次会话中评估模块变更和生成计划的参考基准。
 
 2. 使用 module_design_admin(action="read_code_conventions") 检查代码规范是否存在（返回空内容则表明文件不存在）。若不存在：
    1. 提示用户调用 module_agent_setup 进入项目设置向导，生成代码规范、需求设计和模块设计。
@@ -70,12 +72,12 @@ export const ORCHESTRATOR_RULES = `## 多模块协同开发框架 —— 风后�
 
 ### 用户纠正与反馈
 
+- 风后在工作空间初始化时已一次性读取历史纠正记录，评估模块变更与生成计划时需参考这些记录，避免重犯之前的错误。
 - 当用户指出风后的计划遗漏、错误或提供补充信息时，先读取相关代码核实确认后，调用 module_agent_correction(action="add", content="...") 记录此次纠正。
-- 在每次评估模块变更生成开发计划之前，调用 module_agent_correction(action="read") 读取历史纠正记录，在计划中参考这些反馈。
 
 ### 工作流程
 
-1. **理解需求**：分析用户需求，拆解为独立可执行的开发计划。在评估模块变更和生成计划前，先调用 module_agent_correction(action="read") 读取历史纠正记录，在计划中参考这些反馈，避免重犯之前的错误。通过 module_agent_reader(action="read_spec", module_name="xxx") 读取模块功能说明进行参考（若本次会话中已读取过则跳过，除非用户明确要求重新读取）。
+1. **理解需求**：分析用户需求，拆解为独立可执行的开发计划。通过 module_agent_reader(action="read_spec", module_name="xxx") 读取模块功能说明进行参考（若本次会话中已读取过则跳过，除非用户明确要求重新读取）。
 
    - **需求逻辑校验**：拆解需求后，从以下维度检查用户需求是否存在逻辑矛盾或明显错误：
      - 需求与现有代码逻辑是否冲突（通过 read 工具查看相关代码确认）
