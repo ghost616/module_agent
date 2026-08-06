@@ -1107,7 +1107,7 @@ async function handleStartLizhu(
     body: {
       ...(modelConfig?.lizhu ? { model: modelConfig.lizhu } : {}),
       system: systemPrompt,
-      parts: [{ type: 'text', text: '请读取测试说明并执行测试：调用 module_agent_reader(action="read_test_specs") 获取待测试功能说明，然后按需执行 module_agent_testing(action="unit"|"interface"|"e2e"|"compile")。' }],
+      parts: [{ type: 'text', text: '请读取测试说明并执行测试：调用 module_agent_reader(action="read_test_specs") 获取待测试功能说明，然后按需执行测试。' }],
     },
   })
 
