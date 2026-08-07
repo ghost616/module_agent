@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { exec } from 'node:child_process'
-import { writeText } from './fs.ts'
+import { readdir, unlink } from 'node:fs/promises'
+import { exists, writeText } from './fs.ts'
 
 export interface ShellResult {
   stdout: string
@@ -56,4 +57,42 @@ export async function writeTestSpec(
     timestamp: new Date().toISOString(),
   }
   await writeText(path, JSON.stringify(record, null, 2))
+}
+
+export async function cleanStaleTestSpecs(
+  workspaceDir: string,
+  isAlive: (sessionId: string) => Promise<boolean>,
+): Promise<number> {
+  const dir = join(workspaceDir, 'test_specs')
+  if (!(await exists(dir))) return 0
+  let removed = 0
+  const files = await readdir(dir)
+  for (const f of files) {
+    if (!f.endsWith('.json')) continue
+    const sid = f.slice(0, -5)
+    if (!(await isAlive(sid))) {
+      try { await unlink(join(dir, f)) } catch {}
+      removed++
+    }
+  }
+  return removed
+}
+
+export async function cleanStaleTestReports(
+  workspaceDir: string,
+  isAlive: (sessionId: string) => Promise<boolean>,
+): Promise<number> {
+  const dir = join(workspaceDir, 'test_reports')
+  if (!(await exists(dir))) return 0
+  let removed = 0
+  const files = await readdir(dir)
+  for (const f of files) {
+    if (!f.endsWith('.json')) continue
+    const sid = f.slice(0, -5)
+    if (!(await isAlive(sid))) {
+      try { await unlink(join(dir, f)) } catch {}
+      removed++
+    }
+  }
+  return removed
 }

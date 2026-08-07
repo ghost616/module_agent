@@ -1,4 +1,4 @@
-import { mkdir, unlink } from 'node:fs/promises'
+import { mkdir, unlink, readdir } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { exists, readJson, writeText } from './fs.ts'
 import type { KuiPlan } from './types.ts'
@@ -82,4 +82,23 @@ export async function deleteCompletedKuiPlans(workspaceDir: string, fengzhouSess
     return
   }
   await writeFengzhouPlans(workspaceDir, fengzhouSessionId, remaining)
+}
+
+export async function cleanStaleKuiPlans(
+  workspaceDir: string,
+  isAlive: (sessionId: string) => Promise<boolean>,
+): Promise<number> {
+  const dir = kuiPlansDir(workspaceDir)
+  if (!(await exists(dir))) return 0
+  let removed = 0
+  const files = await readdir(dir)
+  for (const f of files) {
+    if (!f.endsWith('.json')) continue
+    const fsid = f.slice(0, -5)
+    if (!(await isAlive(fsid))) {
+      try { await unlink(join(dir, f)) } catch {}
+      removed++
+    }
+  }
+  return removed
 }
