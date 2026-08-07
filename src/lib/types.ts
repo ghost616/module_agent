@@ -122,6 +122,7 @@ export interface KuiPlanEntry {
 
 export interface KuiPlan {
   kui_plan_id: string
+  kui_session_id?: string
   plans: KuiPlanEntry[]
   plan_ids: string[]
   status: 'pending' | 'running' | 'completed'

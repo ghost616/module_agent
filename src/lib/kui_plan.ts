@@ -61,10 +61,11 @@ export async function getCompletedKuiPlans(workspaceDir: string, fengzhouSession
 export async function appendPlanIdToRunningKuiPlan(
   workspaceDir: string,
   fengzhouSessionId: string,
+  kuiSessionId: string,
   planId: string,
 ): Promise<void> {
   const plans = await readFengzhouPlans(workspaceDir, fengzhouSessionId)
-  const running = plans.find(p => p.status === 'running')
+  const running = plans.find(p => p.status === 'running' && p.kui_session_id === kuiSessionId)
   if (!running) return
   if (!running.plan_ids) running.plan_ids = []
   running.plan_ids.push(planId)

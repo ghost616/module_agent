@@ -324,7 +324,7 @@ async function handleStart(
     if (callerMode === 'kui') {
       const kuiFengzhouSid = await getKuiStarter(workspaceDir, sessionID)
       if (kuiFengzhouSid) {
-        await appendPlanIdToRunningKuiPlan(workspaceDir, kuiFengzhouSid, plan_id)
+        await appendPlanIdToRunningKuiPlan(workspaceDir, kuiFengzhouSid, sessionID, plan_id)
       }
     }
 
@@ -446,7 +446,7 @@ async function handleStart(
   if (callerMode === 'kui') {
     const kuiFengzhouSid = await getKuiStarter(workspaceDir, sessionID)
     if (kuiFengzhouSid) {
-      await appendPlanIdToRunningKuiPlan(workspaceDir, kuiFengzhouSid, plan_id)
+      await appendPlanIdToRunningKuiPlan(workspaceDir, kuiFengzhouSid, sessionID, plan_id)
     }
   }
 
@@ -457,6 +457,7 @@ async function handleStart(
       service: 'module-agent-plugin',
       level: 'info',
       message: `Started module agent for '${module_name}'`,
+
       extra: { module_name, session_id: sessionId, plan_id },
     },
   })

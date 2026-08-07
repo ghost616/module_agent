@@ -241,6 +241,7 @@ async function handleUpdateKuiPlan(directory: string, sessionId: string, args: a
   }
 
   if (status) plan.status = status
+  if (status === 'running') plan.kui_session_id = sessionId
   if (result !== undefined) plan.result = result
 
   await writeKuiPlan(wsDir, fengzhouSessionId, plan)
