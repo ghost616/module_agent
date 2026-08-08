@@ -31,7 +31,7 @@ export function createModuleAgentExecutor(client: OpencodeClient) {
   return tool({
     description: '启动力牧会话或查询执行状态。用于分配开发计划给力牧并追踪执行结果。支持启动夔智能体进行批量计划编排。',
     args: {
-       action: tool.schema.enum(['start', 'status', 'ping', 'start_review', 'review_status', 'check_reviewer', 'kui_status', 'start_lizhu', 'list_unbound_lizhu', 'start_kui']).describe('操作类型：start 启动执行，status 查询力牧状态，ping 二次检查提醒力牧写入执行总结，start_review 启动皋陶代码审查，review_status 查询皋陶审查结果，check_reviewer 检查皋陶是否空闲，kui_status 查询夔状态并获取已完成的夔计划（获取后自动删除，仅供风后），start_lizhu 启动离朱测试，list_unbound_lizhu 获取当前工作空间中所有未绑定的离朱会话 ID，start_kui 启动夔批量编排智能体'),
+       action: tool.schema.enum(['start', 'status', 'ping', 'start_review', 'review_status', 'check_reviewer', 'kui_status', 'start_lizhu', 'list_unbound_lizhu', 'start_kui']).describe('操作类型：start 启动执行，status 查询力牧状态，ping 二次检查提醒力牧写入执行总结，start_review 启动皋陶代码审查，review_status 查询皋陶审查结果，check_reviewer 检查皋陶是否空闲，kui_status 查询夔状态并获取已完成的夔计划（获取后自动删除，仅供风后），start_lizhu 风后或力牧启动离朱测试，list_unbound_lizhu 获取当前工作空间中所有未绑定的离朱会话 ID，start_kui 启动夔批量编排智能体'),
       module_name: tool.schema.string().optional().describe('模块唯一标识名称（action=start/status 时必填）'),
       development_plan: tool.schema.string().optional().describe('开发计划文本（action=start 时必填）'),
       plan_id: tool.schema.string().optional().describe('计划 ID，由 module_agent_plan(action="confirm_plan") 返回（action=start 时必填）'),
